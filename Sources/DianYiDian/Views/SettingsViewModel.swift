@@ -37,6 +37,7 @@ final class SettingsViewModel: ObservableObject {
     private let counterController: CounterController
     private let launchAtLoginService: LaunchAtLoginService
     private let shortcutWarningProvider: () -> String?
+    private var savedLaunchAtLogin: Bool
     private var clearMessageTask: Task<Void, Never>?
 
     init(
@@ -49,7 +50,9 @@ final class SettingsViewModel: ObservableObject {
         self.shortcutWarningProvider = shortcutWarningProvider
 
         let snapshot = counterController.snapshot
-        self.launchAtLogin = snapshot.settings.launchAtLogin
+        let launchAtLoginEnabled = launchAtLoginService.isEnabled || snapshot.settings.launchAtLogin
+        self.launchAtLogin = launchAtLoginEnabled
+        self.savedLaunchAtLogin = launchAtLoginEnabled
         self.showIncrementFeedback = snapshot.settings.showIncrementFeedback
         self.notifyWhenGoalReached = snapshot.settings.notifyWhenGoalReached
         self.menuBarDisplayMode = snapshot.settings.menuBarDisplayMode
@@ -163,6 +166,7 @@ final class SettingsViewModel: ObservableObject {
         scenario.isEnabled = isEnabled
         scenario.isPinnedToMenuBar = isPinnedToMenuBar
 
+        let shouldUpdateLaunchAtLogin = launchAtLogin != savedLaunchAtLogin
         let nextSettings = AppSettings(
             launchAtLogin: launchAtLogin,
             showIncrementFeedback: showIncrementFeedback,
@@ -181,14 +185,17 @@ final class SettingsViewModel: ObservableObject {
         }
 
         do {
-            try launchAtLoginService.setEnabled(launchAtLogin)
+            if shouldUpdateLaunchAtLogin {
+                try launchAtLoginService.setEnabled(launchAtLogin)
+                savedLaunchAtLogin = launchAtLogin
+            }
             if validationNotes.isEmpty {
                 setMessage("已保存，菜单栏已更新。", kind: .success, autoClear: true)
             } else {
                 setMessage(validationNotes.joined(separator: " "), kind: .warning)
             }
         } catch {
-            setMessage("设置已保存，但开机自启更新失败：\(error.localizedDescription)", kind: .error)
+            setMessage("设置已保存，但开机自启更新失败。", kind: .error)
         }
 
         NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
@@ -197,7 +204,9 @@ final class SettingsViewModel: ObservableObject {
     private func reloadFromController(selectedID: UUID?) {
         let snapshot = counterController.snapshot
         scenarios = snapshot.scenarios
-        launchAtLogin = snapshot.settings.launchAtLogin
+        let launchAtLoginEnabled = launchAtLoginService.isEnabled || snapshot.settings.launchAtLogin
+        launchAtLogin = launchAtLoginEnabled
+        savedLaunchAtLogin = launchAtLoginEnabled
         showIncrementFeedback = snapshot.settings.showIncrementFeedback
         notifyWhenGoalReached = snapshot.settings.notifyWhenGoalReached
         menuBarDisplayMode = snapshot.settings.menuBarDisplayMode

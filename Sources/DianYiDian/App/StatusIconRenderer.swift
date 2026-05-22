@@ -64,71 +64,58 @@ final class StatusIconRenderer {
         let color: NSColor = progress >= 1
             ? nsColor(themeColor).blended(withFraction: 0.18, of: .black) ?? nsColor(themeColor)
             : NSColor(calibratedWhite: 0.08, alpha: 0.92)
-        color.setStroke()
-        color.setFill()
 
-        switch style {
-        case .waterDrop:
-            let path = NSBezierPath()
-            path.move(to: NSPoint(x: center.x, y: center.y + 4.5))
-            path.curve(
-                to: NSPoint(x: center.x - 3.8, y: center.y - 1.2),
-                controlPoint1: NSPoint(x: center.x - 2.5, y: center.y + 2),
-                controlPoint2: NSPoint(x: center.x - 3.8, y: center.y + 0.4)
-            )
-            path.curve(
-                to: NSPoint(x: center.x, y: center.y - 5),
-                controlPoint1: NSPoint(x: center.x - 3.8, y: center.y - 3.4),
-                controlPoint2: NSPoint(x: center.x - 2.2, y: center.y - 5)
-            )
-            path.curve(
-                to: NSPoint(x: center.x + 3.8, y: center.y - 1.2),
-                controlPoint1: NSPoint(x: center.x + 2.2, y: center.y - 5),
-                controlPoint2: NSPoint(x: center.x + 3.8, y: center.y - 3.4)
-            )
-            path.curve(
-                to: NSPoint(x: center.x, y: center.y + 4.5),
-                controlPoint1: NSPoint(x: center.x + 3.8, y: center.y + 0.4),
-                controlPoint2: NSPoint(x: center.x + 2.5, y: center.y + 2)
-            )
-            path.close()
-            path.lineWidth = 1.25
-            path.stroke()
-
-        case .dot:
-            let outerDot = NSBezierPath(ovalIn: NSRect(x: center.x - 4.2, y: center.y - 4.2, width: 8.4, height: 8.4))
-            NSColor(calibratedWhite: 1, alpha: 0.72).setFill()
-            outerDot.fill()
-            color.setFill()
-            NSBezierPath(ovalIn: NSRect(x: center.x - 3.2, y: center.y - 3.2, width: 6.4, height: 6.4)).fill()
-
-        case .checkmark:
-            let path = NSBezierPath()
-            path.move(to: NSPoint(x: center.x - 4.5, y: center.y))
-            path.line(to: NSPoint(x: center.x - 1.2, y: center.y - 3.2))
-            path.line(to: NSPoint(x: center.x + 4.8, y: center.y + 3.8))
-            path.lineWidth = 2.2
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
-            path.stroke()
-
-        default:
-            drawSymbol(style: style, color: color, center: center)
-        }
+        drawSymbol(style: style, color: color, center: center)
     }
 
     private func drawSymbol(style: IconStyle, color: NSColor, center: NSPoint) {
-        guard let symbol = NSImage(systemSymbolName: style.symbolName, accessibilityDescription: style.displayName) else {
+        guard let symbol = makeTintedSymbol(style: style, color: color) else {
+            color.setFill()
             NSBezierPath(ovalIn: NSRect(x: center.x - 3.2, y: center.y - 3.2, width: 6.4, height: 6.4)).fill()
             return
         }
 
-        let rect = NSRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)
-        symbol.lockFocus()
-        color.set()
-        NSRect(origin: .zero, size: symbol.size).fill(using: .sourceAtop)
-        symbol.unlockFocus()
+        let rect = NSRect(x: center.x - 5.4, y: center.y - 5.4, width: 10.8, height: 10.8)
         symbol.draw(in: rect)
+    }
+
+    private func makeTintedSymbol(style: IconStyle, color: NSColor) -> NSImage? {
+        guard let baseSymbol = NSImage(
+            systemSymbolName: style.symbolName,
+            accessibilityDescription: style.displayName
+        ) else {
+            return nil
+        }
+
+        let symbolSize = NSSize(width: 14, height: 14)
+        let configuration = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+        let symbol = baseSymbol.withSymbolConfiguration(configuration) ?? baseSymbol
+        let mask = NSImage(size: symbolSize)
+        mask.lockFocus()
+        NSColor.clear.setFill()
+        NSRect(origin: .zero, size: symbolSize).fill()
+        NSColor.black.set()
+        symbol.draw(
+            in: NSRect(origin: .zero, size: symbolSize),
+            from: .zero,
+            operation: .sourceOver,
+            fraction: 1
+        )
+        mask.unlockFocus()
+
+        let tinted = NSImage(size: symbolSize)
+        tinted.lockFocus()
+        color.setFill()
+        NSRect(origin: .zero, size: symbolSize).fill()
+        mask.draw(
+            in: NSRect(origin: .zero, size: symbolSize),
+            from: .zero,
+            operation: .destinationIn,
+            fraction: 1
+        )
+        tinted.unlockFocus()
+        tinted.isTemplate = false
+        return tinted
     }
 
     private func progressColor(progress: Double, themeColor: ThemeColor) -> NSColor {
