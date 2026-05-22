@@ -2,11 +2,13 @@ import AppKit
 import DianYiDianCore
 
 @MainActor
-final class StatusBarController: NSObject {
+final class StatusBarController: NSObject, NSMenuDelegate {
     private let counterController: CounterController
     private let onOpenSettings: () -> Void
     private let statusItem: NSStatusItem
     private let iconRenderer = StatusIconRenderer()
+    private let soundFeedbackService = SoundFeedbackService()
+    private var activeMenu: NSMenu?
 
     init(counterController: CounterController, onOpenSettings: @escaping () -> Void) {
         self.counterController = counterController
@@ -48,7 +50,7 @@ final class StatusBarController: NSObject {
             let before = counterController.snapshot.reachedGoal
             let snapshot = try counterController.increment()
             refreshIcon()
-            showLightFeedbackIfNeeded(snapshot: snapshot, reachedGoalBeforeIncrement: before)
+            playFeedback(snapshot: snapshot, reachedGoalBeforeIncrement: before)
         } catch {
             presentError("打卡失败：\(error.localizedDescription)")
         }
@@ -62,9 +64,11 @@ final class StatusBarController: NSObject {
         }
         refreshIcon()
 
-        statusItem.menu = buildMenu()
+        let menu = buildMenu()
+        menu.delegate = self
+        activeMenu = menu
+        statusItem.menu = menu
         statusItem.button?.performClick(nil)
-        statusItem.menu = nil
     }
 
     private func buildMenu() -> NSMenu {
@@ -82,6 +86,11 @@ final class StatusBarController: NSObject {
         )
         countItem.isEnabled = false
         menu.addItem(countItem)
+
+        let calendarItem = NSMenuItem()
+        calendarItem.view = MonthCalendarMenuView(monthProgress: counterController.currentMonthProgress())
+        calendarItem.isEnabled = false
+        menu.addItem(calendarItem)
         menu.addItem(.separator())
 
         menu.addItem(NSMenuItem(title: "打卡", action: #selector(menuIncrement), keyEquivalent: ""))
@@ -104,8 +113,10 @@ final class StatusBarController: NSObject {
 
     @objc private func menuIncrement() {
         do {
-            _ = try counterController.increment()
+            let before = counterController.snapshot.reachedGoal
+            let snapshot = try counterController.increment()
             refreshIcon()
+            playFeedback(snapshot: snapshot, reachedGoalBeforeIncrement: before)
         } catch {
             presentError("打卡失败：\(error.localizedDescription)")
         }
@@ -141,6 +152,13 @@ final class StatusBarController: NSObject {
         refreshIcon()
     }
 
+    func menuDidClose(_ menu: NSMenu) {
+        if activeMenu === menu {
+            statusItem.menu = nil
+            activeMenu = nil
+        }
+    }
+
     private func refreshIcon() {
         let snapshot = counterController.snapshot
         statusItem.button?.image = iconRenderer.makeImage(
@@ -156,13 +174,12 @@ final class StatusBarController: NSObject {
         )
     }
 
-    private func showLightFeedbackIfNeeded(snapshot: CounterSnapshot, reachedGoalBeforeIncrement: Bool) {
-        if snapshot.settings.showIncrementFeedback {
-            NSSound(named: "Pop")?.play()
-        }
-        if snapshot.settings.notifyWhenGoalReached, snapshot.reachedGoal, !reachedGoalBeforeIncrement {
-            NSSound(named: "Glass")?.play()
-        }
+    private func playFeedback(snapshot: CounterSnapshot, reachedGoalBeforeIncrement: Bool) {
+        soundFeedbackService.playIncrementIfNeeded(settings: snapshot.settings)
+        soundFeedbackService.playGoalReachedIfNeeded(
+            snapshot: snapshot,
+            reachedGoalBeforeIncrement: reachedGoalBeforeIncrement
+        )
     }
 
     private func presentError(_ message: String) {

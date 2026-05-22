@@ -94,6 +94,14 @@ public final class CounterController {
         store.saveSettings(settings)
     }
 
+    public func currentMonthProgress(today: Date = Date()) -> MonthProgress {
+        MonthProgressBuilder().build(
+            snapshot: snapshot,
+            historyRecords: store.loadHistoryRecords(),
+            today: today
+        )
+    }
+
     @discardableResult
     public func rolloverIfNeeded() throws -> Bool {
         let currentDayID = dayProvider.currentDayID()

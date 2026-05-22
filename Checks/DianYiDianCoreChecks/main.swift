@@ -13,6 +13,11 @@ enum CoreChecks {
         try changingDailyTargetRecalculatesProgress()
         try rolloverArchivesPreviousDayAndResetsToday()
         try historyReadsInvalidFileAsEmptyRecords()
+        try monthProgressBuildsCurrentMonthDays()
+        try monthProgressUsesMondayGridOffset()
+        try monthProgressMapsHistoryAndToday()
+        try monthProgressMarksFutureDaysAndCapsRatio()
+        try monthProgressBuildsWithEmptyHistory()
         print("DianYiDianCoreChecks passed")
     }
 
@@ -159,6 +164,115 @@ enum CoreChecks {
         check(fixture.store.loadHistoryRecords() == [], "invalid history")
     }
 
+    private static func monthProgressBuildsCurrentMonthDays() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-22")
+        )
+        let today = makeDate(year: 2026, month: 5, day: 22)
+        let month = MonthProgressBuilder(calendar: gregorianCalendar()).build(
+            snapshot: controller.snapshot,
+            historyRecords: [],
+            today: today
+        )
+
+        check(month.monthID == "2026-05", "month id")
+        check(month.monthTitle == "2026年5月", "month title")
+        check(month.days.count == 31, "month days")
+        check(month.days.first?.dayNumber == 1, "first day")
+        check(month.days.last?.dayNumber == 31, "last day")
+    }
+
+    private static func monthProgressUsesMondayGridOffset() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-22")
+        )
+        let month = MonthProgressBuilder(calendar: gregorianCalendar()).build(
+            snapshot: controller.snapshot,
+            historyRecords: [],
+            today: makeDate(year: 2026, month: 5, day: 22)
+        )
+
+        check(month.weekdaySymbols == ["一", "二", "三", "四", "五", "六", "日"], "weekday symbols")
+        check(month.leadingBlankCount == 4, "monday grid offset")
+    }
+
+    private static func monthProgressMapsHistoryAndToday() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-22")
+        )
+        try controller.updateItem(
+            CounterItem(name: "喝水", dailyTarget: 8, initialCount: 0, iconStyle: .waterDrop),
+            applyInitialCountToToday: false
+        )
+        _ = try controller.increment()
+        _ = try controller.increment()
+        _ = try controller.increment()
+
+        let records = [
+            HistoryRecord(date: "2026-05-01", itemName: "喝水", finalCount: 4, targetCount: 8, reachedGoal: false),
+            HistoryRecord(date: "2026-05-02", itemName: "喝水", finalCount: 9, targetCount: 8, reachedGoal: true)
+        ]
+        let month = MonthProgressBuilder(calendar: gregorianCalendar()).build(
+            snapshot: controller.snapshot,
+            historyRecords: records,
+            today: makeDate(year: 2026, month: 5, day: 22)
+        )
+
+        let first = month.days[0]
+        let second = month.days[1]
+        let today = month.days[21]
+
+        check(first.count == 4, "history count")
+        check(first.completionRatio == 0.5, "history partial ratio")
+        check(first.hasRecord, "history has record")
+        check(second.completionRatio == 1, "history capped complete")
+        check(today.isToday, "today marker")
+        check(today.count == 3, "today count")
+        check(today.completionRatio == 0.375, "today ratio")
+    }
+
+    private static func monthProgressMarksFutureDaysAndCapsRatio() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-22")
+        )
+        let records = [
+            HistoryRecord(date: "2026-05-21", itemName: "喝水", finalCount: 12, targetCount: 8, reachedGoal: true)
+        ]
+        let month = MonthProgressBuilder(calendar: gregorianCalendar()).build(
+            snapshot: controller.snapshot,
+            historyRecords: records,
+            today: makeDate(year: 2026, month: 5, day: 22)
+        )
+
+        let yesterday = month.days[20]
+        let tomorrow = month.days[22]
+
+        check(yesterday.completionRatio == 1, "past capped ratio")
+        check(tomorrow.isFuture, "future marker")
+        check(tomorrow.completionRatio == 0, "future no water")
+        check(tomorrow.hasRecord == false, "future no record")
+    }
+
+    private static func monthProgressBuildsWithEmptyHistory() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-22")
+        )
+        let month = MonthProgressBuilder(calendar: gregorianCalendar()).build(
+            snapshot: controller.snapshot,
+            historyRecords: [],
+            today: makeDate(year: 2026, month: 5, day: 22)
+        )
+
+        check(month.days.count == 31, "empty history month days")
+        check(month.days[0].hasRecord == false, "empty history no past record")
+        check(month.days[21].isToday, "empty history still has today")
+    }
+
     private static func makeFixture() -> (store: CounterStore, historyURL: URL) {
         let suiteName = "DianYiDianChecks-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -176,5 +290,16 @@ enum CoreChecks {
         guard condition() else {
             fatalError("Check failed: \(name)")
         }
+    }
+
+    private static func gregorianCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 8 * 60 * 60)!
+        calendar.locale = Locale(identifier: "zh_CN")
+        return calendar
+    }
+
+    private static func makeDate(year: Int, month: Int, day: Int) -> Date {
+        gregorianCalendar().date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
     }
 }
