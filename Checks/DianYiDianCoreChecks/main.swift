@@ -10,13 +10,19 @@ enum CoreChecks {
         try undoSubtractsOneWhenLastActionWasIncrement()
         try undoIsDisabledWhenCountIsZero()
         try resetUsesInitialCountAndClearsUndo()
+        try addedScenariosKeepIndependentCounts()
+        try selectingScenarioChangesCurrentSnapshot()
+        try deactivatingCurrentScenarioSelectsAnotherEnabledScenario()
+        try shortcutSelectionUsesEnabledScenarioOrder()
         try progressCapsAtOneAfterTargetReached()
         try changingDailyTargetRecalculatesProgress()
         try rolloverArchivesPreviousDayAndResetsToday()
+        try rolloverArchivesEnabledScenariosIndependently()
         try historyReadsInvalidFileAsEmptyRecords()
         try monthProgressBuildsCurrentMonthDays()
         try monthProgressUsesMondayGridOffset()
         try monthProgressMapsHistoryAndToday()
+        try monthProgressFiltersRecordsByScenario()
         try monthProgressMarksFutureDaysAndCapsRatio()
         try monthProgressBuildsWithEmptyHistory()
         print("DianYiDianCoreChecks passed")
@@ -36,6 +42,9 @@ enum CoreChecks {
         check(controller.snapshot.state.count == 0, "default count")
         check(controller.snapshot.state.hasUndoableIncrement == false, "default undo flag")
         check(controller.snapshot.settings.menuBarDisplayMode == .iconAndText, "default menu bar display mode")
+        check(controller.snapshot.settings.scenarioDisplayMode == .currentScenario, "default scenario display mode")
+        check(controller.snapshot.scenarios.count == 1, "default scenario count")
+        check(controller.snapshot.scenario.name == "喝水", "default scenario name")
     }
 
     private static func legacySettingsDecodeWithDefaultDisplayMode() throws {
@@ -111,6 +120,63 @@ enum CoreChecks {
         check(undoSnapshot.state.count == 2, "reset cannot undo")
     }
 
+    private static func addedScenariosKeepIndependentCounts() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-21")
+        )
+        let defaultID = controller.currentScenarioID
+        let writing = try controller.addScenario(CheckInScenario(name: "写作", dailyTarget: 3, iconStyle: .pencil))
+        let writingID = writing.scenario.id
+
+        _ = try controller.increment(scenarioID: defaultID)
+        _ = try controller.increment(scenarioID: writingID)
+        _ = try controller.increment(scenarioID: writingID)
+
+        check(controller.snapshot(for: defaultID).state.count == 1, "default scenario independent count")
+        check(controller.snapshot(for: writingID).state.count == 2, "added scenario independent count")
+    }
+
+    private static func selectingScenarioChangesCurrentSnapshot() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-21")
+        )
+        let snapshot = try controller.addScenario(CheckInScenario(name: "阅读", dailyTarget: 5, iconStyle: .book))
+
+        controller.selectScenario(id: snapshot.scenario.id)
+
+        check(controller.snapshot.scenario.name == "阅读", "select scenario")
+    }
+
+    private static func deactivatingCurrentScenarioSelectsAnotherEnabledScenario() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-21")
+        )
+        let defaultID = controller.currentScenarioID
+        let snapshot = try controller.addScenario(CheckInScenario(name: "站立", dailyTarget: 6, iconStyle: .figureStand))
+        controller.selectScenario(id: snapshot.scenario.id)
+
+        try controller.deactivateScenario(id: snapshot.scenario.id)
+
+        check(controller.currentScenarioID == defaultID, "deactivate current fallback")
+        check(controller.snapshot.scenario.isEnabled, "fallback is enabled")
+    }
+
+    private static func shortcutSelectionUsesEnabledScenarioOrder() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-21")
+        )
+        _ = try controller.addScenario(CheckInScenario(name: "咖啡", dailyTarget: 2, iconStyle: .coffee))
+        _ = try controller.addScenario(CheckInScenario(name: "学习", dailyTarget: 4, iconStyle: .brain))
+
+        controller.selectScenarioByShortcutIndex(1)
+
+        check(controller.snapshot.scenario.name == "咖啡", "shortcut selects second scenario")
+    }
+
     private static func progressCapsAtOneAfterTargetReached() throws {
         let controller = CounterController(
             store: makeFixture().store,
@@ -171,9 +237,33 @@ enum CoreChecks {
         check(records.count == 1, "history count")
         check(records.first?.date == "2026-05-20", "history date")
         check(records.first?.itemName == "喝水", "history item")
+        check(records.first?.scenarioID == controller.snapshot.scenario.id, "history scenario id")
         check(records.first?.finalCount == 2, "history final count")
         check(records.first?.targetCount == 2, "history target")
         check(records.first?.reachedGoal == true, "history goal")
+    }
+
+    private static func rolloverArchivesEnabledScenariosIndependently() throws {
+        let fixture = makeFixture()
+        let controller = CounterController(
+            store: fixture.store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-20")
+        )
+        let defaultID = controller.currentScenarioID
+        let writing = try controller.addScenario(CheckInScenario(name: "写作", dailyTarget: 2, iconStyle: .pencil))
+        _ = try controller.increment(scenarioID: defaultID)
+        _ = try controller.increment(scenarioID: writing.scenario.id)
+        _ = try controller.increment(scenarioID: writing.scenario.id)
+
+        controller.setDayProvider(FixedDayProvider(dayID: "2026-05-21"))
+        _ = try controller.rolloverIfNeeded()
+
+        let records = fixture.store.loadHistoryRecords()
+        check(records.count == 2, "multi scenario history count")
+        check(records.contains { $0.scenarioID == defaultID && $0.finalCount == 1 }, "default scenario history")
+        check(records.contains { $0.scenarioID == writing.scenario.id && $0.finalCount == 2 && $0.reachedGoal }, "added scenario history")
+        check(controller.snapshot(for: defaultID).state.dayID == "2026-05-21", "default scenario rollover day")
+        check(controller.snapshot(for: writing.scenario.id).state.count == 0, "added scenario rollover count")
     }
 
     private static func historyReadsInvalidFileAsEmptyRecords() throws {
@@ -251,6 +341,28 @@ enum CoreChecks {
         check(today.isToday, "today marker")
         check(today.count == 3, "today count")
         check(today.completionRatio == 0.375, "today ratio")
+    }
+
+    private static func monthProgressFiltersRecordsByScenario() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-22")
+        )
+        let waterID = controller.currentScenarioID
+        let writing = try controller.addScenario(CheckInScenario(name: "写作", dailyTarget: 4, iconStyle: .pencil))
+        let records = [
+            HistoryRecord(date: "2026-05-01", scenarioID: waterID, itemName: "喝水", finalCount: 8, targetCount: 8, reachedGoal: true),
+            HistoryRecord(date: "2026-05-01", scenarioID: writing.scenario.id, itemName: "写作", finalCount: 2, targetCount: 4, reachedGoal: false)
+        ]
+
+        let month = MonthProgressBuilder(calendar: gregorianCalendar()).build(
+            snapshot: controller.snapshot(for: writing.scenario.id),
+            historyRecords: records,
+            today: makeDate(year: 2026, month: 5, day: 22)
+        )
+
+        check(month.days[0].count == 2, "scenario filtered history count")
+        check(month.days[0].completionRatio == 0.5, "scenario filtered history ratio")
     }
 
     private static func monthProgressMarksFutureDaysAndCapsRatio() throws {

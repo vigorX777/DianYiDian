@@ -80,7 +80,13 @@ public struct MonthProgressBuilder: Sendable {
         let firstWeekday = calendar.component(.weekday, from: startOfMonth)
         let leadingBlankCount = (firstWeekday - calendar.firstWeekday + 7) % 7
 
-        let historyByDate = Dictionary(historyRecords.map { ($0.date, $0) }, uniquingKeysWith: { _, latest in latest })
+        let scenarioHistoryRecords = historyRecords.filter { record in
+            if let scenarioID = record.scenarioID {
+                return scenarioID == snapshot.scenario.id
+            }
+            return snapshot.scenarios.count == 1 || record.itemName == snapshot.scenario.name
+        }
+        let historyByDate = Dictionary(scenarioHistoryRecords.map { ($0.date, $0) }, uniquingKeysWith: { _, latest in latest })
         let days = dayRange.compactMap { day -> DayProgress? in
             guard let date = calendar.date(from: DateComponents(year: year, month: month, day: day)) else {
                 return nil
@@ -94,7 +100,7 @@ public struct MonthProgressBuilder: Sendable {
                     dayID: dayID,
                     dayNumber: day,
                     count: snapshot.state.count,
-                    target: snapshot.item.dailyTarget,
+                    target: snapshot.scenario.dailyTarget,
                     isToday: true,
                     isFuture: false,
                     hasRecord: true
@@ -106,7 +112,7 @@ public struct MonthProgressBuilder: Sendable {
                     dayID: dayID,
                     dayNumber: day,
                     count: 0,
-                    target: snapshot.item.dailyTarget,
+                    target: snapshot.scenario.dailyTarget,
                     isToday: false,
                     isFuture: true,
                     hasRecord: false
@@ -129,7 +135,7 @@ public struct MonthProgressBuilder: Sendable {
                 dayID: dayID,
                 dayNumber: day,
                 count: 0,
-                target: snapshot.item.dailyTarget,
+                target: snapshot.scenario.dailyTarget,
                 isToday: false,
                 isFuture: false,
                 hasRecord: false

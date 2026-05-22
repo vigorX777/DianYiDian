@@ -4,16 +4,21 @@ import SwiftUI
 
 @MainActor
 final class SettingsWindowController: NSWindowController {
-    init(counterController: CounterController, launchAtLoginService: LaunchAtLoginService) {
+    init(
+        counterController: CounterController,
+        launchAtLoginService: LaunchAtLoginService,
+        shortcutWarningProvider: @escaping () -> String?
+    ) {
         let viewModel = SettingsViewModel(
             counterController: counterController,
-            launchAtLoginService: launchAtLoginService
+            launchAtLoginService: launchAtLoginService,
+            shortcutWarningProvider: shortcutWarningProvider
         )
         let hostingController = NSHostingController(rootView: SettingsView(viewModel: viewModel))
         let window = NSWindow(contentViewController: hostingController)
         window.title = "点一点设置"
         window.styleMask = [.titled, .closable, .miniaturizable]
-        window.setContentSize(NSSize(width: 420, height: 430))
+        window.setContentSize(NSSize(width: 760, height: 560))
         window.isReleasedWhenClosed = false
         super.init(window: window)
     }

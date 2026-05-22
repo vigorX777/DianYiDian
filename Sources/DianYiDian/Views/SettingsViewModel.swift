@@ -13,31 +13,56 @@ final class SettingsViewModel: ObservableObject {
     @Published var showIncrementFeedback: Bool
     @Published var notifyWhenGoalReached: Bool
     @Published var menuBarDisplayMode: MenuBarDisplayMode
+    @Published var scenarioDisplayMode: ScenarioDisplayMode
+    @Published var scenarios: [CheckInScenario]
+    @Published var selectedScenarioID: UUID? {
+        didSet {
+            guard oldValue != selectedScenarioID else {
+                return
+            }
+            loadSelectedScenarioForm()
+        }
+    }
     @Published var itemName: String
     @Published var dailyTarget: Int
     @Published var initialCount: Int
     @Published var iconStyle: IconStyle
+    @Published var themeColor: ThemeColor
+    @Published var isEnabled: Bool
+    @Published var isPinnedToMenuBar: Bool
     @Published var applyInitialCountToToday = false
     @Published var message: String?
     @Published var messageKind: SettingsMessageKind = .success
 
     private let counterController: CounterController
     private let launchAtLoginService: LaunchAtLoginService
+    private let shortcutWarningProvider: () -> String?
     private var clearMessageTask: Task<Void, Never>?
 
-    init(counterController: CounterController, launchAtLoginService: LaunchAtLoginService) {
+    init(
+        counterController: CounterController,
+        launchAtLoginService: LaunchAtLoginService,
+        shortcutWarningProvider: @escaping () -> String?
+    ) {
         self.counterController = counterController
         self.launchAtLoginService = launchAtLoginService
+        self.shortcutWarningProvider = shortcutWarningProvider
 
         let snapshot = counterController.snapshot
         self.launchAtLogin = snapshot.settings.launchAtLogin
         self.showIncrementFeedback = snapshot.settings.showIncrementFeedback
         self.notifyWhenGoalReached = snapshot.settings.notifyWhenGoalReached
         self.menuBarDisplayMode = snapshot.settings.menuBarDisplayMode
-        self.itemName = snapshot.item.name
-        self.dailyTarget = snapshot.item.dailyTarget
-        self.initialCount = snapshot.item.initialCount
-        self.iconStyle = snapshot.item.iconStyle
+        self.scenarioDisplayMode = snapshot.settings.scenarioDisplayMode
+        self.scenarios = snapshot.scenarios
+        self.selectedScenarioID = snapshot.scenario.id
+        self.itemName = snapshot.scenario.name
+        self.dailyTarget = snapshot.scenario.dailyTarget
+        self.initialCount = snapshot.scenario.initialCount
+        self.iconStyle = snapshot.scenario.iconStyle
+        self.themeColor = snapshot.scenario.themeColor
+        self.isEnabled = snapshot.scenario.isEnabled
+        self.isPinnedToMenuBar = snapshot.scenario.isPinnedToMenuBar
     }
 
     deinit {
@@ -50,10 +75,63 @@ final class SettingsViewModel: ObservableObject {
             : nil
     }
 
+    var shortcutWarning: String? {
+        shortcutWarningProvider()
+    }
+
+    var selectedScenario: CheckInScenario? {
+        guard let selectedScenarioID else {
+            return nil
+        }
+        return scenarios.first { $0.id == selectedScenarioID }
+    }
+
+    func addScenario() {
+        clearMessageTask?.cancel()
+        let scenario = CheckInScenario(
+            name: "新场景",
+            dailyTarget: 1,
+            initialCount: 0,
+            iconStyle: .dot,
+            themeColor: .blue,
+            isEnabled: true,
+            isPinnedToMenuBar: false
+        )
+
+        do {
+            let snapshot = try counterController.addScenario(scenario)
+            reloadFromController(selectedID: snapshot.scenario.id)
+            setMessage("已新增场景。", kind: .success, autoClear: true)
+            NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
+        } catch {
+            setMessage("新增失败：\(error.localizedDescription)", kind: .error)
+        }
+    }
+
+    func deactivateSelectedScenario() {
+        guard let selectedScenarioID else {
+            return
+        }
+
+        do {
+            try counterController.deactivateScenario(id: selectedScenarioID)
+            reloadFromController(selectedID: counterController.currentScenarioID)
+            setMessage("场景已停用，历史记录已保留。", kind: .warning)
+            NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
+        } catch {
+            setMessage("停用失败：\(error.localizedDescription)", kind: .error)
+        }
+    }
+
     func save() {
         clearMessageTask?.cancel()
         message = nil
         messageKind = .success
+
+        guard var scenario = selectedScenario else {
+            setMessage("没有可保存的场景。", kind: .error)
+            return
+        }
 
         let trimmedName = itemName.trimmingCharacters(in: .whitespacesAndNewlines)
         let sanitizedName = trimmedName.isEmpty ? "喝水" : trimmedName
@@ -77,22 +155,26 @@ final class SettingsViewModel: ObservableObject {
         dailyTarget = sanitizedDailyTarget
         initialCount = sanitizedInitialCount
 
-        let nextItem = CounterItem(
-            name: sanitizedName,
-            dailyTarget: sanitizedDailyTarget,
-            initialCount: sanitizedInitialCount,
-            iconStyle: iconStyle
-        )
+        scenario.name = sanitizedName
+        scenario.dailyTarget = sanitizedDailyTarget
+        scenario.initialCount = sanitizedInitialCount
+        scenario.iconStyle = iconStyle
+        scenario.themeColor = themeColor
+        scenario.isEnabled = isEnabled
+        scenario.isPinnedToMenuBar = isPinnedToMenuBar
+
         let nextSettings = AppSettings(
             launchAtLogin: launchAtLogin,
             showIncrementFeedback: showIncrementFeedback,
             notifyWhenGoalReached: notifyWhenGoalReached,
-            menuBarDisplayMode: menuBarDisplayMode
+            menuBarDisplayMode: menuBarDisplayMode,
+            scenarioDisplayMode: scenarioDisplayMode
         )
 
         do {
-            try counterController.updateItem(nextItem, applyInitialCountToToday: applyInitialCountToToday)
+            try counterController.updateScenario(scenario, applyInitialCountToToday: applyInitialCountToToday)
             counterController.updateSettings(nextSettings)
+            reloadFromController(selectedID: counterController.currentScenarioID == scenario.id ? scenario.id : counterController.currentScenarioID)
         } catch {
             setMessage("保存失败：\(error.localizedDescription)", kind: .error)
             return
@@ -110,6 +192,32 @@ final class SettingsViewModel: ObservableObject {
         }
 
         NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
+    }
+
+    private func reloadFromController(selectedID: UUID?) {
+        let snapshot = counterController.snapshot
+        scenarios = snapshot.scenarios
+        launchAtLogin = snapshot.settings.launchAtLogin
+        showIncrementFeedback = snapshot.settings.showIncrementFeedback
+        notifyWhenGoalReached = snapshot.settings.notifyWhenGoalReached
+        menuBarDisplayMode = snapshot.settings.menuBarDisplayMode
+        scenarioDisplayMode = snapshot.settings.scenarioDisplayMode
+        selectedScenarioID = selectedID ?? snapshot.scenario.id
+        loadSelectedScenarioForm()
+    }
+
+    private func loadSelectedScenarioForm() {
+        guard let scenario = selectedScenario else {
+            return
+        }
+        itemName = scenario.name
+        dailyTarget = scenario.dailyTarget
+        initialCount = scenario.initialCount
+        iconStyle = scenario.iconStyle
+        themeColor = scenario.themeColor
+        isEnabled = scenario.isEnabled
+        isPinnedToMenuBar = scenario.isPinnedToMenuBar
+        applyInitialCountToToday = false
     }
 
     private func setMessage(_ text: String, kind: SettingsMessageKind, autoClear: Bool = false) {

@@ -2,7 +2,7 @@ import AppKit
 import DianYiDianCore
 
 final class StatusIconRenderer {
-    func makeImage(progress: Double, style: IconStyle) -> NSImage {
+    func makeImage(progress: Double, style: IconStyle, themeColor: ThemeColor = .blue) -> NSImage {
         let size = NSSize(width: 22, height: 22)
         let image = NSImage(size: size)
         let clampedProgress = min(1, max(0, progress))
@@ -38,11 +38,11 @@ final class StatusIconRenderer {
             )
             progressRing.lineCapStyle = .round
             progressRing.lineWidth = 2.4
-            progressColor(progress: clampedProgress).setStroke()
+            progressColor(progress: clampedProgress, themeColor: themeColor).setStroke()
             progressRing.stroke()
         }
 
-        drawGlyph(style: style, progress: clampedProgress, center: center)
+        drawGlyph(style: style, progress: clampedProgress, center: center, themeColor: themeColor)
         image.unlockFocus()
         image.isTemplate = false
         return image
@@ -60,9 +60,9 @@ final class StatusIconRenderer {
         outline.stroke()
     }
 
-    private func drawGlyph(style: IconStyle, progress: Double, center: NSPoint) {
+    private func drawGlyph(style: IconStyle, progress: Double, center: NSPoint, themeColor: ThemeColor) {
         let color: NSColor = progress >= 1
-            ? NSColor.systemGreen.blended(withFraction: 0.18, of: .black) ?? .systemGreen
+            ? nsColor(themeColor).blended(withFraction: 0.18, of: .black) ?? nsColor(themeColor)
             : NSColor(calibratedWhite: 0.08, alpha: 0.92)
         color.setStroke()
         color.setFill()
@@ -111,21 +111,50 @@ final class StatusIconRenderer {
             path.lineCapStyle = .round
             path.lineJoinStyle = .round
             path.stroke()
+
+        default:
+            drawSymbol(style: style, color: color, center: center)
         }
     }
 
-    private func progressColor(progress: Double) -> NSColor {
+    private func drawSymbol(style: IconStyle, color: NSColor, center: NSPoint) {
+        guard let symbol = NSImage(systemSymbolName: style.symbolName, accessibilityDescription: style.displayName) else {
+            NSBezierPath(ovalIn: NSRect(x: center.x - 3.2, y: center.y - 3.2, width: 6.4, height: 6.4)).fill()
+            return
+        }
+
+        let rect = NSRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)
+        symbol.lockFocus()
+        color.set()
+        NSRect(origin: .zero, size: symbol.size).fill(using: .sourceAtop)
+        symbol.unlockFocus()
+        symbol.draw(in: rect)
+    }
+
+    private func progressColor(progress: Double, themeColor: ThemeColor) -> NSColor {
         switch progress {
         case ..<0.25:
             .systemGray
         case ..<0.50:
-            .systemBlue
+            nsColor(themeColor).withAlphaComponent(0.75)
         case ..<0.75:
-            .systemTeal
+            nsColor(themeColor).withAlphaComponent(0.88)
         case ..<1:
-            .systemOrange
+            nsColor(themeColor)
         default:
-            .systemGreen
+            nsColor(themeColor).blended(withFraction: 0.14, of: .black) ?? nsColor(themeColor)
+        }
+    }
+
+    private func nsColor(_ color: ThemeColor) -> NSColor {
+        switch color {
+        case .blue: .systemBlue
+        case .teal: .systemTeal
+        case .green: .systemGreen
+        case .orange: .systemOrange
+        case .purple: .systemPurple
+        case .pink: .systemPink
+        case .gray: .systemGray
         }
     }
 }
