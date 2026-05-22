@@ -161,17 +161,33 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private func refreshIcon() {
         let snapshot = counterController.snapshot
+        let displayMode = snapshot.settings.menuBarDisplayMode
+        let title = "\(snapshot.state.count)/\(snapshot.item.dailyTarget)"
+        statusItem.length = displayMode == .iconOnly ? 28 : max(68, CGFloat(title.count * 8 + 34))
         statusItem.button?.image = iconRenderer.makeImage(
             progress: snapshot.progress,
             style: snapshot.item.iconStyle
         )
-        statusItem.button?.attributedTitle = NSAttributedString(
-            string: "\(snapshot.state.count)/\(snapshot.item.dailyTarget)",
-            attributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium),
-                .foregroundColor: NSColor.labelColor
-            ]
-        )
+        statusItem.button?.imagePosition = displayMode == .iconOnly ? .imageOnly : .imageLeading
+        statusItem.button?.attributedTitle = displayMode == .iconOnly
+            ? NSAttributedString(string: "")
+            : NSAttributedString(
+                string: title,
+                attributes: [
+                    .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
+                    .foregroundColor: NSColor.labelColor,
+                    .shadow: titleShadow()
+                ]
+            )
+        statusItem.button?.toolTip = "\(snapshot.item.name)：今日 \(snapshot.state.count) / \(snapshot.item.dailyTarget)"
+    }
+
+    private func titleShadow() -> NSShadow {
+        let shadow = NSShadow()
+        shadow.shadowOffset = .zero
+        shadow.shadowBlurRadius = 1.2
+        shadow.shadowColor = NSColor.windowBackgroundColor.withAlphaComponent(0.8)
+        return shadow
     }
 
     private func playFeedback(snapshot: CounterSnapshot, reachedGoalBeforeIncrement: Bool) {

@@ -12,6 +12,8 @@ final class StatusIconRenderer {
         NSRect(origin: .zero, size: size).fill()
 
         let center = NSPoint(x: size.width / 2, y: size.height / 2)
+        drawContrastPlate(center: center)
+
         let radius: CGFloat = 8.5
         let baseRing = NSBezierPath()
         baseRing.appendArc(
@@ -21,8 +23,8 @@ final class StatusIconRenderer {
             endAngle: 360,
             clockwise: false
         )
-        baseRing.lineWidth = 2
-        NSColor.secondaryLabelColor.withAlphaComponent(0.35).setStroke()
+        baseRing.lineWidth = 2.2
+        NSColor(calibratedWhite: 0.08, alpha: 0.28).setStroke()
         baseRing.stroke()
 
         if clampedProgress > 0 {
@@ -46,8 +48,22 @@ final class StatusIconRenderer {
         return image
     }
 
+    private func drawContrastPlate(center: NSPoint) {
+        let plateRect = NSRect(x: center.x - 10.4, y: center.y - 10.4, width: 20.8, height: 20.8)
+        let plate = NSBezierPath(ovalIn: plateRect)
+        NSColor(calibratedWhite: 1, alpha: 0.92).setFill()
+        plate.fill()
+
+        let outline = NSBezierPath(ovalIn: plateRect.insetBy(dx: 0.5, dy: 0.5))
+        outline.lineWidth = 0.9
+        NSColor(calibratedWhite: 0, alpha: 0.24).setStroke()
+        outline.stroke()
+    }
+
     private func drawGlyph(style: IconStyle, progress: Double, center: NSPoint) {
-        let color: NSColor = progress >= 1 ? .systemGreen : .labelColor
+        let color: NSColor = progress >= 1
+            ? NSColor.systemGreen.blended(withFraction: 0.18, of: .black) ?? .systemGreen
+            : NSColor(calibratedWhite: 0.08, alpha: 0.92)
         color.setStroke()
         color.setFill()
 
@@ -76,18 +92,22 @@ final class StatusIconRenderer {
                 controlPoint2: NSPoint(x: center.x + 2.5, y: center.y + 2)
             )
             path.close()
-            path.lineWidth = 1.1
+            path.lineWidth = 1.25
             path.stroke()
 
         case .dot:
-            NSBezierPath(ovalIn: NSRect(x: center.x - 3, y: center.y - 3, width: 6, height: 6)).fill()
+            let outerDot = NSBezierPath(ovalIn: NSRect(x: center.x - 4.2, y: center.y - 4.2, width: 8.4, height: 8.4))
+            NSColor(calibratedWhite: 1, alpha: 0.72).setFill()
+            outerDot.fill()
+            color.setFill()
+            NSBezierPath(ovalIn: NSRect(x: center.x - 3.2, y: center.y - 3.2, width: 6.4, height: 6.4)).fill()
 
         case .checkmark:
             let path = NSBezierPath()
             path.move(to: NSPoint(x: center.x - 4.5, y: center.y))
             path.line(to: NSPoint(x: center.x - 1.2, y: center.y - 3.2))
             path.line(to: NSPoint(x: center.x + 4.8, y: center.y + 3.8))
-            path.lineWidth = 2
+            path.lineWidth = 2.2
             path.lineCapStyle = .round
             path.lineJoinStyle = .round
             path.stroke()

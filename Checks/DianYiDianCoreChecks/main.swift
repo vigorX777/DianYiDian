@@ -5,6 +5,7 @@ import Foundation
 enum CoreChecks {
     static func main() throws {
         try defaultConfigurationIsCreatedOnFirstLaunch()
+        try legacySettingsDecodeWithDefaultDisplayMode()
         try incrementAddsOneToTodayCount()
         try undoSubtractsOneWhenLastActionWasIncrement()
         try undoIsDisabledWhenCountIsZero()
@@ -34,6 +35,24 @@ enum CoreChecks {
         check(controller.snapshot.state.dayID == "2026-05-21", "default day")
         check(controller.snapshot.state.count == 0, "default count")
         check(controller.snapshot.state.hasUndoableIncrement == false, "default undo flag")
+        check(controller.snapshot.settings.menuBarDisplayMode == .iconAndText, "default menu bar display mode")
+    }
+
+    private static func legacySettingsDecodeWithDefaultDisplayMode() throws {
+        let data = Data("""
+        {
+          "launchAtLogin" : true,
+          "notifyWhenGoalReached" : false,
+          "showIncrementFeedback" : true
+        }
+        """.utf8)
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: data)
+
+        check(settings.launchAtLogin, "legacy settings launch")
+        check(settings.showIncrementFeedback, "legacy settings increment feedback")
+        check(settings.notifyWhenGoalReached == false, "legacy settings goal feedback")
+        check(settings.menuBarDisplayMode == .iconAndText, "legacy settings display mode default")
     }
 
     private static func incrementAddsOneToTodayCount() throws {

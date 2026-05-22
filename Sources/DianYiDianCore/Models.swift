@@ -52,15 +52,47 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var launchAtLogin: Bool
     public var showIncrementFeedback: Bool
     public var notifyWhenGoalReached: Bool
+    public var menuBarDisplayMode: MenuBarDisplayMode
+
+    private enum CodingKeys: String, CodingKey {
+        case launchAtLogin
+        case showIncrementFeedback
+        case notifyWhenGoalReached
+        case menuBarDisplayMode
+    }
 
     public init(
         launchAtLogin: Bool = false,
         showIncrementFeedback: Bool = true,
-        notifyWhenGoalReached: Bool = true
+        notifyWhenGoalReached: Bool = true,
+        menuBarDisplayMode: MenuBarDisplayMode = .iconAndText
     ) {
         self.launchAtLogin = launchAtLogin
         self.showIncrementFeedback = showIncrementFeedback
         self.notifyWhenGoalReached = notifyWhenGoalReached
+        self.menuBarDisplayMode = menuBarDisplayMode
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+        self.showIncrementFeedback = try container.decodeIfPresent(Bool.self, forKey: .showIncrementFeedback) ?? true
+        self.notifyWhenGoalReached = try container.decodeIfPresent(Bool.self, forKey: .notifyWhenGoalReached) ?? true
+        self.menuBarDisplayMode = try container.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode) ?? .iconAndText
+    }
+}
+
+public enum MenuBarDisplayMode: String, Codable, CaseIterable, Equatable, Sendable {
+    case iconOnly
+    case iconAndText
+
+    public var displayName: String {
+        switch self {
+        case .iconOnly:
+            "只显示图标"
+        case .iconAndText:
+            "图标 + 数字"
+        }
     }
 }
 
