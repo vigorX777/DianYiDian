@@ -78,6 +78,61 @@ public enum IconStyle: String, Codable, CaseIterable, Equatable, Sendable {
     }
 }
 
+public enum ReminderMode: String, Codable, CaseIterable, Equatable, Sendable {
+    case none
+    case interval
+    case fixedTime
+
+    public var displayName: String {
+        switch self {
+        case .none: "不提醒"
+        case .interval: "每隔一段时间"
+        case .fixedTime: "每天固定时间"
+        }
+    }
+}
+
+public struct ReminderSettings: Codable, Equatable, Sendable {
+    public var mode: ReminderMode
+    public var intervalMinutes: Int
+    public var fixedHour: Int
+    public var fixedMinute: Int
+    public var menuBarHintEnabled: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case mode
+        case intervalMinutes
+        case fixedHour
+        case fixedMinute
+        case menuBarHintEnabled
+    }
+
+    public init(
+        mode: ReminderMode = .none,
+        intervalMinutes: Int = 60,
+        fixedHour: Int = 10,
+        fixedMinute: Int = 0,
+        menuBarHintEnabled: Bool = true
+    ) {
+        self.mode = mode
+        self.intervalMinutes = max(15, min(240, intervalMinutes))
+        self.fixedHour = max(0, min(23, fixedHour))
+        self.fixedMinute = max(0, min(59, fixedMinute))
+        self.menuBarHintEnabled = menuBarHintEnabled
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            mode: try container.decodeIfPresent(ReminderMode.self, forKey: .mode) ?? .none,
+            intervalMinutes: try container.decodeIfPresent(Int.self, forKey: .intervalMinutes) ?? 60,
+            fixedHour: try container.decodeIfPresent(Int.self, forKey: .fixedHour) ?? 10,
+            fixedMinute: try container.decodeIfPresent(Int.self, forKey: .fixedMinute) ?? 0,
+            menuBarHintEnabled: try container.decodeIfPresent(Bool.self, forKey: .menuBarHintEnabled) ?? true
+        )
+    }
+}
+
 public struct CounterItem: Codable, Equatable, Sendable {
     public var name: String
     public var dailyTarget: Int
@@ -105,9 +160,24 @@ public struct CheckInScenario: Codable, Equatable, Identifiable, Sendable {
     public var initialCount: Int
     public var iconStyle: IconStyle
     public var themeColor: ThemeColor
+    public var reminderSettings: ReminderSettings
     public var isEnabled: Bool
     public var isPinnedToMenuBar: Bool
     public var sortOrder: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case type
+        case name
+        case dailyTarget
+        case initialCount
+        case iconStyle
+        case themeColor
+        case reminderSettings
+        case isEnabled
+        case isPinnedToMenuBar
+        case sortOrder
+    }
 
     public init(
         id: UUID = UUID(),
@@ -117,6 +187,7 @@ public struct CheckInScenario: Codable, Equatable, Identifiable, Sendable {
         initialCount: Int = 0,
         iconStyle: IconStyle = .waterDrop,
         themeColor: ThemeColor = .blue,
+        reminderSettings: ReminderSettings = ReminderSettings(),
         isEnabled: Bool = true,
         isPinnedToMenuBar: Bool = false,
         sortOrder: Int = 0
@@ -128,9 +199,27 @@ public struct CheckInScenario: Codable, Equatable, Identifiable, Sendable {
         self.initialCount = initialCount
         self.iconStyle = iconStyle
         self.themeColor = themeColor
+        self.reminderSettings = reminderSettings
         self.isEnabled = isEnabled
         self.isPinnedToMenuBar = isPinnedToMenuBar
         self.sortOrder = sortOrder
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID(),
+            type: try container.decodeIfPresent(CheckInType.self, forKey: .type) ?? .count,
+            name: try container.decodeIfPresent(String.self, forKey: .name) ?? "喝水",
+            dailyTarget: try container.decodeIfPresent(Int.self, forKey: .dailyTarget) ?? 8,
+            initialCount: try container.decodeIfPresent(Int.self, forKey: .initialCount) ?? 0,
+            iconStyle: try container.decodeIfPresent(IconStyle.self, forKey: .iconStyle) ?? .waterDrop,
+            themeColor: try container.decodeIfPresent(ThemeColor.self, forKey: .themeColor) ?? .blue,
+            reminderSettings: try container.decodeIfPresent(ReminderSettings.self, forKey: .reminderSettings) ?? ReminderSettings(),
+            isEnabled: try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true,
+            isPinnedToMenuBar: try container.decodeIfPresent(Bool.self, forKey: .isPinnedToMenuBar) ?? false,
+            sortOrder: try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
+        )
     }
 
     public init(item: CounterItem, id: UUID = UUID(), sortOrder: Int = 0) {
@@ -162,12 +251,44 @@ public struct ScenarioState: Codable, Equatable, Sendable {
     public var dayID: String
     public var count: Int
     public var hasUndoableIncrement: Bool
+    public var lastCheckInAt: Date?
+    public var lastReminderSentAt: Date?
 
-    public init(scenarioID: UUID, dayID: String, count: Int = 0, hasUndoableIncrement: Bool = false) {
+    private enum CodingKeys: String, CodingKey {
+        case scenarioID
+        case dayID
+        case count
+        case hasUndoableIncrement
+        case lastCheckInAt
+        case lastReminderSentAt
+    }
+
+    public init(
+        scenarioID: UUID,
+        dayID: String,
+        count: Int = 0,
+        hasUndoableIncrement: Bool = false,
+        lastCheckInAt: Date? = nil,
+        lastReminderSentAt: Date? = nil
+    ) {
         self.scenarioID = scenarioID
         self.dayID = dayID
         self.count = count
         self.hasUndoableIncrement = hasUndoableIncrement
+        self.lastCheckInAt = lastCheckInAt
+        self.lastReminderSentAt = lastReminderSentAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            scenarioID: try container.decode(UUID.self, forKey: .scenarioID),
+            dayID: try container.decode(String.self, forKey: .dayID),
+            count: try container.decodeIfPresent(Int.self, forKey: .count) ?? 0,
+            hasUndoableIncrement: try container.decodeIfPresent(Bool.self, forKey: .hasUndoableIncrement) ?? false,
+            lastCheckInAt: try container.decodeIfPresent(Date.self, forKey: .lastCheckInAt),
+            lastReminderSentAt: try container.decodeIfPresent(Date.self, forKey: .lastReminderSentAt)
+        )
     }
 }
 
@@ -179,6 +300,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var notifyWhenGoalReached: Bool
     public var menuBarDisplayMode: MenuBarDisplayMode
     public var scenarioDisplayMode: ScenarioDisplayMode
+    public var checkInAnimationEnabled: Bool
+    public var goalCelebrationEnabled: Bool
 
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
@@ -186,6 +309,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case notifyWhenGoalReached
         case menuBarDisplayMode
         case scenarioDisplayMode
+        case checkInAnimationEnabled
+        case goalCelebrationEnabled
     }
 
     public init(
@@ -193,13 +318,17 @@ public struct AppSettings: Codable, Equatable, Sendable {
         showIncrementFeedback: Bool = true,
         notifyWhenGoalReached: Bool = true,
         menuBarDisplayMode: MenuBarDisplayMode = .iconAndText,
-        scenarioDisplayMode: ScenarioDisplayMode = .currentScenario
+        scenarioDisplayMode: ScenarioDisplayMode = .currentScenario,
+        checkInAnimationEnabled: Bool = true,
+        goalCelebrationEnabled: Bool = true
     ) {
         self.launchAtLogin = launchAtLogin
         self.showIncrementFeedback = showIncrementFeedback
         self.notifyWhenGoalReached = notifyWhenGoalReached
         self.menuBarDisplayMode = menuBarDisplayMode
         self.scenarioDisplayMode = scenarioDisplayMode
+        self.checkInAnimationEnabled = checkInAnimationEnabled
+        self.goalCelebrationEnabled = goalCelebrationEnabled
     }
 
     public init(from decoder: Decoder) throws {
@@ -209,6 +338,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.notifyWhenGoalReached = try container.decodeIfPresent(Bool.self, forKey: .notifyWhenGoalReached) ?? true
         self.menuBarDisplayMode = try container.decodeIfPresent(MenuBarDisplayMode.self, forKey: .menuBarDisplayMode) ?? .iconAndText
         self.scenarioDisplayMode = try container.decodeIfPresent(ScenarioDisplayMode.self, forKey: .scenarioDisplayMode) ?? .currentScenario
+        self.checkInAnimationEnabled = try container.decodeIfPresent(Bool.self, forKey: .checkInAnimationEnabled) ?? true
+        self.goalCelebrationEnabled = try container.decodeIfPresent(Bool.self, forKey: .goalCelebrationEnabled) ?? true
     }
 }
 

@@ -11,6 +11,8 @@ struct SettingsView: View {
                     Toggle("开机自启", isOn: $viewModel.launchAtLogin)
                     Toggle("打卡成功提示", isOn: $viewModel.showIncrementFeedback)
                     Toggle("达到每日目标时提醒", isOn: $viewModel.notifyWhenGoalReached)
+                    Toggle("打卡动效", isOn: $viewModel.checkInAnimationEnabled)
+                    Toggle("达标小庆祝", isOn: $viewModel.goalCelebrationEnabled)
 
                     Picker("菜单栏显示", selection: $viewModel.menuBarDisplayMode) {
                         ForEach(MenuBarDisplayMode.allCases, id: \.self) { mode in
@@ -28,6 +30,11 @@ struct SettingsView: View {
 
                     if let shortcutWarning = viewModel.shortcutWarning {
                         Text(shortcutWarning)
+                            .font(.caption)
+                            .foregroundStyle(Color.orange)
+                    }
+                    if let notificationWarning = viewModel.notificationWarning {
+                        Text(notificationWarning)
                             .font(.caption)
                             .foregroundStyle(Color.orange)
                     }
@@ -163,6 +170,44 @@ struct SettingsView: View {
 
             Toggle("启用场景", isOn: $viewModel.isEnabled)
             Toggle("固定到菜单栏", isOn: $viewModel.isPinnedToMenuBar)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("提醒")
+                    .font(.headline)
+                Picker("提醒方式", selection: $viewModel.reminderMode) {
+                    ForEach(ReminderMode.allCases, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                switch viewModel.reminderMode {
+                case .none:
+                    EmptyView()
+                case .interval:
+                    Stepper(
+                        "间隔分钟：\(viewModel.reminderIntervalMinutes)",
+                        value: $viewModel.reminderIntervalMinutes,
+                        in: 15...240,
+                        step: 15
+                    )
+                case .fixedTime:
+                    HStack {
+                        Stepper(
+                            "小时：\(String(format: "%02d", viewModel.reminderFixedHour))",
+                            value: $viewModel.reminderFixedHour,
+                            in: 0...23
+                        )
+                        Stepper(
+                            "分钟：\(String(format: "%02d", viewModel.reminderFixedMinute))",
+                            value: $viewModel.reminderFixedMinute,
+                            in: 0...59
+                        )
+                    }
+                }
+
+                Toggle("菜单栏轻提示", isOn: $viewModel.reminderMenuBarHintEnabled)
+            }
 
             HStack {
                 Button("停用场景") {

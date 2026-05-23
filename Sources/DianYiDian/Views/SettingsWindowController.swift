@@ -7,12 +7,14 @@ final class SettingsWindowController: NSWindowController {
     init(
         counterController: CounterController,
         launchAtLoginService: LaunchAtLoginService,
-        shortcutWarningProvider: @escaping () -> String?
+        shortcutWarningProvider: @escaping () -> String?,
+        notificationWarningProvider: @escaping () -> String?
     ) {
         let viewModel = SettingsViewModel(
             counterController: counterController,
             launchAtLoginService: launchAtLoginService,
-            shortcutWarningProvider: shortcutWarningProvider
+            shortcutWarningProvider: shortcutWarningProvider,
+            notificationWarningProvider: notificationWarningProvider
         )
         let hostingController = NSHostingController(rootView: SettingsView(viewModel: viewModel))
         let window = NSWindow(contentViewController: hostingController)

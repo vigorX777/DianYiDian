@@ -2,7 +2,13 @@ import AppKit
 import DianYiDianCore
 
 final class StatusIconRenderer {
-    func makeImage(progress: Double, style: IconStyle, themeColor: ThemeColor = .blue) -> NSImage {
+    func makeImage(
+        progress: Double,
+        style: IconStyle,
+        themeColor: ThemeColor = .blue,
+        isHighlighted: Bool = false,
+        isCelebrating: Bool = false
+    ) -> NSImage {
         let size = NSSize(width: 22, height: 22)
         let image = NSImage(size: size)
         let clampedProgress = min(1, max(0, progress))
@@ -13,6 +19,9 @@ final class StatusIconRenderer {
 
         let center = NSPoint(x: size.width / 2, y: size.height / 2)
         drawContrastPlate(center: center)
+        if isHighlighted || isCelebrating {
+            drawFeedbackGlow(center: center, themeColor: themeColor, isCelebrating: isCelebrating)
+        }
 
         let radius: CGFloat = 8.5
         let baseRing = NSBezierPath()
@@ -37,8 +46,11 @@ final class StatusIconRenderer {
                 clockwise: true
             )
             progressRing.lineCapStyle = .round
-            progressRing.lineWidth = 2.4
-            progressColor(progress: clampedProgress, themeColor: themeColor).setStroke()
+            progressRing.lineWidth = isHighlighted || isCelebrating ? 3 : 2.4
+            let ringColor = isHighlighted || isCelebrating
+                ? nsColor(themeColor)
+                : progressColor(progress: clampedProgress, themeColor: themeColor)
+            ringColor.setStroke()
             progressRing.stroke()
         }
 
@@ -57,6 +69,19 @@ final class StatusIconRenderer {
         let outline = NSBezierPath(ovalIn: plateRect.insetBy(dx: 0.5, dy: 0.5))
         outline.lineWidth = 0.9
         NSColor(calibratedWhite: 0, alpha: 0.24).setStroke()
+        outline.stroke()
+    }
+
+    private func drawFeedbackGlow(center: NSPoint, themeColor: ThemeColor, isCelebrating: Bool) {
+        let glowRect = NSRect(x: center.x - 10.9, y: center.y - 10.9, width: 21.8, height: 21.8)
+        let glow = NSBezierPath(ovalIn: glowRect)
+        let alpha: CGFloat = isCelebrating ? 0.38 : 0.24
+        nsColor(themeColor).withAlphaComponent(alpha).setFill()
+        glow.fill()
+
+        let outline = NSBezierPath(ovalIn: glowRect.insetBy(dx: 1.2, dy: 1.2))
+        outline.lineWidth = isCelebrating ? 1.8 : 1.4
+        nsColor(themeColor).withAlphaComponent(isCelebrating ? 0.9 : 0.72).setStroke()
         outline.stroke()
     }
 

@@ -9,6 +9,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let soundFeedbackService = SoundFeedbackService()
     private var statusItems: [UUID: NSStatusItem] = [:]
     private var activeMenu: NSMenu?
+    private var highlightedScenarioIDs: Set<UUID> = []
+    private var celebratingScenarioIDs: Set<UUID> = []
+    private var celebrationPopovers: [UUID: NSPopover] = [:]
 
     init(counterController: CounterController, onOpenSettings: @escaping () -> Void) {
         self.counterController = counterController
@@ -114,6 +117,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         countItem.isEnabled = false
         menu.addItem(countItem)
 
+        let lastCheckInItem = NSMenuItem(
+            title: lastCheckInText(for: snapshot.state.lastCheckInAt),
+            action: nil,
+            keyEquivalent: ""
+        )
+        lastCheckInItem.isEnabled = false
+        menu.addItem(lastCheckInItem)
+
         let calendarItem = NSMenuItem()
         calendarItem.view = MonthCalendarMenuView(monthProgress: counterController.currentMonthProgress(scenarioID: scenarioID))
         calendarItem.isEnabled = false
@@ -176,6 +187,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         do {
             _ = try counterController.undoLastIncrement(scenarioID: scenarioID(from: sender))
             refreshAllStatusItems()
+            NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
         } catch {
             presentError("撤销失败：\(error.localizedDescription)")
         }
@@ -185,6 +197,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         do {
             _ = try counterController.resetToday(scenarioID: scenarioID(from: sender))
             refreshAllStatusItems()
+            NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
         } catch {
             presentError("重置失败：\(error.localizedDescription)")
         }
@@ -223,7 +236,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             let before = counterController.snapshot(for: scenarioID).reachedGoal
             let snapshot = try counterController.increment(scenarioID: scenarioID)
             refreshAllStatusItems()
+            if snapshot.settings.checkInAnimationEnabled {
+                triggerCheckInFeedback(scenarioID: scenarioID)
+            }
+            if !before && snapshot.reachedGoal && snapshot.settings.goalCelebrationEnabled {
+                triggerGoalCelebration(snapshot: snapshot)
+            }
             playFeedback(snapshot: snapshot, reachedGoalBeforeIncrement: before)
+            NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
         } catch {
             presentError("打卡失败：\(error.localizedDescription)")
         }
@@ -249,7 +269,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         item.button?.image = iconRenderer.makeImage(
             progress: snapshot.progress,
             style: snapshot.scenario.iconStyle,
-            themeColor: snapshot.scenario.themeColor
+            themeColor: snapshot.scenario.themeColor,
+            isHighlighted: highlightedScenarioIDs.contains(scenarioID),
+            isCelebrating: celebratingScenarioIDs.contains(scenarioID)
         )
         item.button?.imagePosition = displayMode == .iconOnly ? .imageOnly : .imageLeading
         item.button?.attributedTitle = displayMode == .iconOnly
@@ -263,6 +285,26 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 ]
             )
         item.button?.toolTip = "\(snapshot.scenario.name)：今日 \(snapshot.state.count) / \(snapshot.scenario.dailyTarget)"
+    }
+
+    private func lastCheckInText(for date: Date?) -> String {
+        guard let date else {
+            return "上次：今日未打卡"
+        }
+
+        let elapsed = max(0, Int(Date().timeIntervalSince(date)))
+        if elapsed < 60 {
+            return "上次：刚刚"
+        }
+        let minutes = elapsed / 60
+        if minutes < 60 {
+            return "上次：\(minutes) 分钟前"
+        }
+        let hours = minutes / 60
+        if hours < 24 {
+            return "上次：\(hours) 小时前"
+        }
+        return "上次：今日未打卡"
     }
 
     private func scenarioID(from item: NSMenuItem) -> UUID {
@@ -289,10 +331,89 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         )
     }
 
+    private func triggerCheckInFeedback(scenarioID: UUID) {
+        highlightedScenarioIDs.insert(scenarioID)
+        refreshAllStatusItems()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+            guard let self else {
+                return
+            }
+            highlightedScenarioIDs.remove(scenarioID)
+            refreshAllStatusItems()
+        }
+    }
+
+    private func triggerGoalCelebration(snapshot: CounterSnapshot) {
+        let scenarioID = snapshot.scenario.id
+        celebratingScenarioIDs.insert(scenarioID)
+        refreshAllStatusItems()
+        showGoalPopover(scenarioID: scenarioID, text: "今日\(snapshot.scenario.name)完成")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            guard let self else {
+                return
+            }
+            celebratingScenarioIDs.remove(scenarioID)
+            celebrationPopovers[scenarioID]?.close()
+            celebrationPopovers.removeValue(forKey: scenarioID)
+            refreshAllStatusItems()
+        }
+    }
+
+    private func showGoalPopover(scenarioID: UUID, text: String) {
+        guard let button = statusItems[scenarioID]?.button else {
+            return
+        }
+
+        celebrationPopovers[scenarioID]?.close()
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentSize = NSSize(width: 150, height: 46)
+        popover.contentViewController = CelebrationViewController(text: text)
+        celebrationPopovers[scenarioID] = popover
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+
     private func presentError(_ message: String) {
         let alert = NSAlert()
         alert.messageText = message
         alert.alertStyle = .warning
         alert.runModal()
+    }
+}
+
+private final class CelebrationViewController: NSViewController {
+    private let text: String
+
+    init(text: String) {
+        self.text = text
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func loadView() {
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: 150, height: 46))
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 10
+        container.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.96).cgColor
+
+        let label = NSTextField(labelWithString: text)
+        label.font = .systemFont(ofSize: 14, weight: .semibold)
+        label.textColor = .labelColor
+        label.alignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        ])
+        view = container
     }
 }

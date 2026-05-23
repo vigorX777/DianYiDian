@@ -12,6 +12,8 @@ final class SettingsViewModel: ObservableObject {
     @Published var launchAtLogin: Bool
     @Published var showIncrementFeedback: Bool
     @Published var notifyWhenGoalReached: Bool
+    @Published var checkInAnimationEnabled: Bool
+    @Published var goalCelebrationEnabled: Bool
     @Published var menuBarDisplayMode: MenuBarDisplayMode
     @Published var scenarioDisplayMode: ScenarioDisplayMode
     @Published var scenarios: [CheckInScenario]
@@ -30,6 +32,11 @@ final class SettingsViewModel: ObservableObject {
     @Published var themeColor: ThemeColor
     @Published var isEnabled: Bool
     @Published var isPinnedToMenuBar: Bool
+    @Published var reminderMode: ReminderMode
+    @Published var reminderIntervalMinutes: Int
+    @Published var reminderFixedHour: Int
+    @Published var reminderFixedMinute: Int
+    @Published var reminderMenuBarHintEnabled: Bool
     @Published var applyInitialCountToToday = false
     @Published var message: String?
     @Published var messageKind: SettingsMessageKind = .success
@@ -37,17 +44,20 @@ final class SettingsViewModel: ObservableObject {
     private let counterController: CounterController
     private let launchAtLoginService: LaunchAtLoginService
     private let shortcutWarningProvider: () -> String?
+    private let notificationWarningProvider: () -> String?
     private var savedLaunchAtLogin: Bool
     private var clearMessageTask: Task<Void, Never>?
 
     init(
         counterController: CounterController,
         launchAtLoginService: LaunchAtLoginService,
-        shortcutWarningProvider: @escaping () -> String?
+        shortcutWarningProvider: @escaping () -> String?,
+        notificationWarningProvider: @escaping () -> String?
     ) {
         self.counterController = counterController
         self.launchAtLoginService = launchAtLoginService
         self.shortcutWarningProvider = shortcutWarningProvider
+        self.notificationWarningProvider = notificationWarningProvider
 
         let snapshot = counterController.snapshot
         let launchAtLoginEnabled = launchAtLoginService.isEnabled || snapshot.settings.launchAtLogin
@@ -55,6 +65,8 @@ final class SettingsViewModel: ObservableObject {
         self.savedLaunchAtLogin = launchAtLoginEnabled
         self.showIncrementFeedback = snapshot.settings.showIncrementFeedback
         self.notifyWhenGoalReached = snapshot.settings.notifyWhenGoalReached
+        self.checkInAnimationEnabled = snapshot.settings.checkInAnimationEnabled
+        self.goalCelebrationEnabled = snapshot.settings.goalCelebrationEnabled
         self.menuBarDisplayMode = snapshot.settings.menuBarDisplayMode
         self.scenarioDisplayMode = snapshot.settings.scenarioDisplayMode
         self.scenarios = snapshot.scenarios
@@ -66,6 +78,11 @@ final class SettingsViewModel: ObservableObject {
         self.themeColor = snapshot.scenario.themeColor
         self.isEnabled = snapshot.scenario.isEnabled
         self.isPinnedToMenuBar = snapshot.scenario.isPinnedToMenuBar
+        self.reminderMode = snapshot.scenario.reminderSettings.mode
+        self.reminderIntervalMinutes = snapshot.scenario.reminderSettings.intervalMinutes
+        self.reminderFixedHour = snapshot.scenario.reminderSettings.fixedHour
+        self.reminderFixedMinute = snapshot.scenario.reminderSettings.fixedMinute
+        self.reminderMenuBarHintEnabled = snapshot.scenario.reminderSettings.menuBarHintEnabled
     }
 
     deinit {
@@ -80,6 +97,10 @@ final class SettingsViewModel: ObservableObject {
 
     var shortcutWarning: String? {
         shortcutWarningProvider()
+    }
+
+    var notificationWarning: String? {
+        notificationWarningProvider()
     }
 
     var selectedScenario: CheckInScenario? {
@@ -153,10 +174,22 @@ final class SettingsViewModel: ObservableObject {
         if initialCount != sanitizedInitialCount {
             validationNotes.append("今日初始次数已限制在 0-99。")
         }
+        let sanitizedReminderInterval = max(15, min(240, reminderIntervalMinutes))
+        let sanitizedReminderHour = max(0, min(23, reminderFixedHour))
+        let sanitizedReminderMinute = max(0, min(59, reminderFixedMinute))
+        if reminderIntervalMinutes != sanitizedReminderInterval {
+            validationNotes.append("提醒间隔已限制在 15-240 分钟。")
+        }
+        if reminderFixedHour != sanitizedReminderHour || reminderFixedMinute != sanitizedReminderMinute {
+            validationNotes.append("固定提醒时间已修正。")
+        }
 
         itemName = sanitizedName
         dailyTarget = sanitizedDailyTarget
         initialCount = sanitizedInitialCount
+        reminderIntervalMinutes = sanitizedReminderInterval
+        reminderFixedHour = sanitizedReminderHour
+        reminderFixedMinute = sanitizedReminderMinute
 
         scenario.name = sanitizedName
         scenario.dailyTarget = sanitizedDailyTarget
@@ -165,6 +198,13 @@ final class SettingsViewModel: ObservableObject {
         scenario.themeColor = themeColor
         scenario.isEnabled = isEnabled
         scenario.isPinnedToMenuBar = isPinnedToMenuBar
+        scenario.reminderSettings = ReminderSettings(
+            mode: reminderMode,
+            intervalMinutes: sanitizedReminderInterval,
+            fixedHour: sanitizedReminderHour,
+            fixedMinute: sanitizedReminderMinute,
+            menuBarHintEnabled: reminderMenuBarHintEnabled
+        )
 
         let shouldUpdateLaunchAtLogin = launchAtLogin != savedLaunchAtLogin
         let nextSettings = AppSettings(
@@ -172,7 +212,9 @@ final class SettingsViewModel: ObservableObject {
             showIncrementFeedback: showIncrementFeedback,
             notifyWhenGoalReached: notifyWhenGoalReached,
             menuBarDisplayMode: menuBarDisplayMode,
-            scenarioDisplayMode: scenarioDisplayMode
+            scenarioDisplayMode: scenarioDisplayMode,
+            checkInAnimationEnabled: checkInAnimationEnabled,
+            goalCelebrationEnabled: goalCelebrationEnabled
         )
 
         do {
@@ -209,6 +251,8 @@ final class SettingsViewModel: ObservableObject {
         savedLaunchAtLogin = launchAtLoginEnabled
         showIncrementFeedback = snapshot.settings.showIncrementFeedback
         notifyWhenGoalReached = snapshot.settings.notifyWhenGoalReached
+        checkInAnimationEnabled = snapshot.settings.checkInAnimationEnabled
+        goalCelebrationEnabled = snapshot.settings.goalCelebrationEnabled
         menuBarDisplayMode = snapshot.settings.menuBarDisplayMode
         scenarioDisplayMode = snapshot.settings.scenarioDisplayMode
         selectedScenarioID = selectedID ?? snapshot.scenario.id
@@ -226,6 +270,11 @@ final class SettingsViewModel: ObservableObject {
         themeColor = scenario.themeColor
         isEnabled = scenario.isEnabled
         isPinnedToMenuBar = scenario.isPinnedToMenuBar
+        reminderMode = scenario.reminderSettings.mode
+        reminderIntervalMinutes = scenario.reminderSettings.intervalMinutes
+        reminderFixedHour = scenario.reminderSettings.fixedHour
+        reminderFixedMinute = scenario.reminderSettings.fixedMinute
+        reminderMenuBarHintEnabled = scenario.reminderSettings.menuBarHintEnabled
         applyInitialCountToToday = false
     }
 

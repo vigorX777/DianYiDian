@@ -113,6 +113,7 @@ public final class CounterController {
         var nextState = state(for: scenario.id)
         nextState.count = min(999, nextState.count + 1)
         nextState.hasUndoableIncrement = true
+        nextState.lastCheckInAt = Date()
         states[scenario.id] = nextState
         store.saveScenarioStates(orderedStates)
         return snapshot(for: scenario.id)
@@ -155,7 +156,9 @@ public final class CounterController {
             scenarioID: scenario.id,
             dayID: dayProvider.currentDayID(),
             count: scenario.initialCount,
-            hasUndoableIncrement: false
+            hasUndoableIncrement: false,
+            lastCheckInAt: nil,
+            lastReminderSentAt: nil
         )
         store.saveScenarioStates(orderedStates)
         return snapshot(for: scenario.id)
@@ -199,7 +202,9 @@ public final class CounterController {
                 scenarioID: next.id,
                 dayID: dayProvider.currentDayID(),
                 count: next.initialCount,
-                hasUndoableIncrement: false
+                hasUndoableIncrement: false,
+                lastCheckInAt: nil,
+                lastReminderSentAt: nil
             )
         }
         ensureUsableScenario()
@@ -250,6 +255,21 @@ public final class CounterController {
         )
     }
 
+    public func reminderSnapshots(now: Date = Date()) -> [CounterSnapshot] {
+        let scheduler = ReminderScheduler()
+        return scheduler.scenariosToRemind(
+            snapshots: enabledScenarios.map { snapshot(for: $0.id) },
+            now: now
+        )
+    }
+
+    public func markReminderSent(scenarioID: UUID, at date: Date = Date()) {
+        var nextState = state(for: scenarioID)
+        nextState.lastReminderSentAt = date
+        states[scenarioID] = nextState
+        store.saveScenarioStates(orderedStates)
+    }
+
     @discardableResult
     public func rolloverIfNeeded() throws -> Bool {
         let currentDayID = dayProvider.currentDayID()
@@ -281,7 +301,9 @@ public final class CounterController {
                 scenarioID: scenario.id,
                 dayID: currentDayID,
                 count: scenario.initialCount,
-                hasUndoableIncrement: false
+                hasUndoableIncrement: false,
+                lastCheckInAt: nil,
+                lastReminderSentAt: nil
             )
         }
         store.saveScenarioStates(orderedStates)
@@ -354,6 +376,7 @@ public final class CounterController {
             initialCount: max(0, min(99, scenario.initialCount)),
             iconStyle: scenario.iconStyle,
             themeColor: scenario.themeColor,
+            reminderSettings: scenario.reminderSettings,
             isEnabled: scenario.isEnabled,
             isPinnedToMenuBar: scenario.isPinnedToMenuBar,
             sortOrder: scenario.sortOrder

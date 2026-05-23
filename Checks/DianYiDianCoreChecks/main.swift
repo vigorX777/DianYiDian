@@ -6,10 +6,20 @@ enum CoreChecks {
     static func main() throws {
         try defaultConfigurationIsCreatedOnFirstLaunch()
         try legacySettingsDecodeWithDefaultDisplayMode()
+        try legacyScenarioDecodeDefaultsReminderSettings()
         try incrementAddsOneToTodayCount()
+        try incrementUpdatesLastCheckInAt()
         try undoSubtractsOneWhenLastActionWasIncrement()
         try undoIsDisabledWhenCountIsZero()
         try resetUsesInitialCountAndClearsUndo()
+        try defaultScenarioReminderModeIsNone()
+        try intervalReminderWaitsUntilDue()
+        try intervalReminderFiresAfterThreshold()
+        try reminderDoesNotFireAfterGoalReached()
+        try fixedTimeReminderWaitsUntilDue()
+        try fixedTimeReminderFiresAtDueTime()
+        try fixedTimeReminderDoesNotRepeatSameDay()
+        try rolloverResetsReminderState()
         try addedScenariosKeepIndependentCounts()
         try selectingScenarioChangesCurrentSnapshot()
         try deactivatingCurrentScenarioSelectsAnotherEnabledScenario()
@@ -64,6 +74,29 @@ enum CoreChecks {
         check(settings.menuBarDisplayMode == .iconAndText, "legacy settings display mode default")
     }
 
+    private static func legacyScenarioDecodeDefaultsReminderSettings() throws {
+        let data = Data("""
+        {
+          "id" : "00000000-0000-0000-0000-000000000001",
+          "type" : "count",
+          "name" : "喝水",
+          "dailyTarget" : 8,
+          "initialCount" : 0,
+          "iconStyle" : "waterDrop",
+          "themeColor" : "blue",
+          "isEnabled" : true,
+          "isPinnedToMenuBar" : false,
+          "sortOrder" : 0
+        }
+        """.utf8)
+
+        let scenario = try JSONDecoder().decode(CheckInScenario.self, from: data)
+
+        check(scenario.reminderSettings.mode == .none, "legacy scenario reminder mode")
+        check(scenario.reminderSettings.intervalMinutes == 60, "legacy scenario interval")
+        check(scenario.reminderSettings.fixedHour == 10, "legacy scenario fixed hour")
+    }
+
     private static func incrementAddsOneToTodayCount() throws {
         let controller = CounterController(
             store: makeFixture().store,
@@ -74,6 +107,17 @@ enum CoreChecks {
 
         check(snapshot.state.count == 1, "increment count")
         check(snapshot.state.hasUndoableIncrement, "increment undo flag")
+    }
+
+    private static func incrementUpdatesLastCheckInAt() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-21")
+        )
+
+        let snapshot = try controller.increment()
+
+        check(snapshot.state.lastCheckInAt != nil, "increment last check-in")
     }
 
     private static func undoSubtractsOneWhenLastActionWasIncrement() throws {
@@ -118,6 +162,146 @@ enum CoreChecks {
         check(snapshot.state.count == 2, "reset count")
         check(snapshot.state.hasUndoableIncrement == false, "reset undo flag")
         check(undoSnapshot.state.count == 2, "reset cannot undo")
+    }
+
+    private static func defaultScenarioReminderModeIsNone() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-21")
+        )
+
+        check(controller.snapshot.scenario.reminderSettings.mode == .none, "default reminder none")
+    }
+
+    private static func intervalReminderWaitsUntilDue() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            reminderSettings: ReminderSettings(mode: .interval, intervalMinutes: 60)
+        )
+        let state = ScenarioState(
+            scenarioID: scenario.id,
+            dayID: "2026-05-21",
+            lastCheckInAt: makeDate(year: 2026, month: 5, day: 21, hour: 10)
+        )
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 10, minute: 30)
+        )
+
+        check(decision.shouldRemind == false, "interval not due")
+    }
+
+    private static func intervalReminderFiresAfterThreshold() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            reminderSettings: ReminderSettings(mode: .interval, intervalMinutes: 60)
+        )
+        let state = ScenarioState(
+            scenarioID: scenario.id,
+            dayID: "2026-05-21",
+            lastCheckInAt: makeDate(year: 2026, month: 5, day: 21, hour: 9)
+        )
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 10, minute: 1)
+        )
+
+        check(decision.shouldRemind, "interval due")
+    }
+
+    private static func reminderDoesNotFireAfterGoalReached() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            dailyTarget: 2,
+            reminderSettings: ReminderSettings(mode: .interval, intervalMinutes: 15)
+        )
+        let state = ScenarioState(
+            scenarioID: scenario.id,
+            dayID: "2026-05-21",
+            count: 2
+        )
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 12)
+        )
+
+        check(decision.shouldRemind == false, "no reminder after goal")
+    }
+
+    private static func fixedTimeReminderWaitsUntilDue() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            reminderSettings: ReminderSettings(mode: .fixedTime, fixedHour: 10)
+        )
+        let state = ScenarioState(scenarioID: scenario.id, dayID: "2026-05-21")
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 9, minute: 59)
+        )
+
+        check(decision.shouldRemind == false, "fixed time not due")
+    }
+
+    private static func fixedTimeReminderFiresAtDueTime() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            reminderSettings: ReminderSettings(mode: .fixedTime, fixedHour: 10)
+        )
+        let state = ScenarioState(scenarioID: scenario.id, dayID: "2026-05-21")
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 10)
+        )
+
+        check(decision.shouldRemind, "fixed time due")
+    }
+
+    private static func fixedTimeReminderDoesNotRepeatSameDay() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            reminderSettings: ReminderSettings(mode: .fixedTime, fixedHour: 10)
+        )
+        let state = ScenarioState(
+            scenarioID: scenario.id,
+            dayID: "2026-05-21",
+            lastReminderSentAt: makeDate(year: 2026, month: 5, day: 21, hour: 10, minute: 1)
+        )
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 11)
+        )
+
+        check(decision.shouldRemind == false, "fixed time no repeat")
+    }
+
+    private static func rolloverResetsReminderState() throws {
+        let controller = CounterController(
+            store: makeFixture().store,
+            dayProvider: FixedDayProvider(dayID: "2026-05-20")
+        )
+        _ = try controller.increment()
+        controller.markReminderSent(
+            scenarioID: controller.currentScenarioID,
+            at: makeDate(year: 2026, month: 5, day: 20, hour: 10)
+        )
+
+        controller.setDayProvider(FixedDayProvider(dayID: "2026-05-21"))
+        _ = try controller.rolloverIfNeeded()
+
+        check(controller.snapshot.state.lastCheckInAt == nil, "rollover clears last check-in")
+        check(controller.snapshot.state.lastReminderSentAt == nil, "rollover clears last reminder")
     }
 
     private static func addedScenariosKeepIndependentCounts() throws {
@@ -430,7 +614,7 @@ enum CoreChecks {
         return calendar
     }
 
-    private static func makeDate(year: Int, month: Int, day: Int) -> Date {
-        gregorianCalendar().date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+    private static func makeDate(year: Int, month: Int, day: Int, hour: Int = 12, minute: Int = 0) -> Date {
+        gregorianCalendar().date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
     }
 }

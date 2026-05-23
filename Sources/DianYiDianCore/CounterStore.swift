@@ -248,6 +248,7 @@ public final class CounterStore {
             initialCount: clampedInitialCount(scenario.initialCount),
             iconStyle: scenario.iconStyle,
             themeColor: scenario.themeColor,
+            reminderSettings: scenario.reminderSettings,
             isEnabled: scenario.isEnabled,
             isPinnedToMenuBar: scenario.isPinnedToMenuBar,
             sortOrder: scenario.sortOrder
@@ -259,7 +260,9 @@ public final class CounterStore {
             scenarioID: state.scenarioID,
             dayID: state.dayID,
             count: max(0, min(999, state.count)),
-            hasUndoableIncrement: state.hasUndoableIncrement
+            hasUndoableIncrement: state.hasUndoableIncrement,
+            lastCheckInAt: state.lastCheckInAt,
+            lastReminderSentAt: state.lastReminderSentAt
         )
     }
 
