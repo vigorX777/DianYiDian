@@ -18,7 +18,9 @@ struct SettingsView: View {
                     ScrollView {
                         VStack(spacing: 14) {
                             appSettingsPanel
-                            developerSettingsPanel
+                            if viewModel.developerSettingsVisible {
+                                developerSettingsPanel
+                            }
                             scenarioEditorPanel
                         }
                         .padding(.trailing, 2)
@@ -39,6 +41,10 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("点一点")
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        viewModel.registerDeveloperActivationTap()
+                    }
                 Text("菜单栏里的轻量打卡")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -135,30 +141,6 @@ struct SettingsView: View {
                         settingRow("开机自启") {
                             Toggle("", isOn: $viewModel.launchAtLogin).labelsHidden()
                         }
-                        settingRow("打卡提示") {
-                            Toggle("", isOn: $viewModel.showIncrementFeedback).labelsHidden()
-                        }
-                    }
-                    GridRow {
-                        settingRow("达标提醒") {
-                            Toggle("", isOn: $viewModel.notifyWhenGoalReached).labelsHidden()
-                        }
-                        settingRow("打卡动效") {
-                            Toggle("", isOn: $viewModel.checkInAnimationEnabled).labelsHidden()
-                        }
-                    }
-                    GridRow {
-                        settingRow("达标庆祝") {
-                            Toggle("", isOn: $viewModel.goalCelebrationEnabled).labelsHidden()
-                        }
-                        settingRow("系统通知") {
-                            Toggle("", isOn: $viewModel.reminderSystemNotificationEnabled).labelsHidden()
-                        }
-                    }
-                    GridRow {
-                        settingRow("菜单气泡") {
-                            Toggle("", isOn: $viewModel.reminderMenuBarBubbleEnabled).labelsHidden()
-                        }
                         Color.clear.frame(height: 1)
                     }
                 }
@@ -197,6 +179,33 @@ struct SettingsView: View {
         LiquidPanel {
             VStack(alignment: .leading, spacing: 14) {
                 PanelTitle(title: "开发者配置", symbol: "hammer")
+
+                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 12) {
+                    GridRow {
+                        settingRow("打卡提示") {
+                            Toggle("", isOn: $viewModel.showIncrementFeedback).labelsHidden()
+                        }
+                        settingRow("达标提醒") {
+                            Toggle("", isOn: $viewModel.notifyWhenGoalReached).labelsHidden()
+                        }
+                    }
+                    GridRow {
+                        settingRow("打卡动效") {
+                            Toggle("", isOn: $viewModel.checkInAnimationEnabled).labelsHidden()
+                        }
+                        settingRow("达标庆祝") {
+                            Toggle("", isOn: $viewModel.goalCelebrationEnabled).labelsHidden()
+                        }
+                    }
+                    GridRow {
+                        settingRow("系统通知") {
+                            Toggle("", isOn: $viewModel.reminderSystemNotificationEnabled).labelsHidden()
+                        }
+                        settingRow("菜单气泡") {
+                            Toggle("", isOn: $viewModel.reminderMenuBarBubbleEnabled).labelsHidden()
+                        }
+                    }
+                }
 
                 settingRow("气泡时长") {
                     HStack(spacing: 8) {

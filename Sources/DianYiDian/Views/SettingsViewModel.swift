@@ -42,6 +42,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var reminderFixedTimes: [ReminderTime]
     @Published var reminderMenuBarHintEnabled: Bool
     @Published var applyInitialCountToToday = false
+    @Published var developerSettingsVisible = false
     @Published var message: String?
     @Published var messageKind: SettingsMessageKind = .success
 
@@ -51,6 +52,7 @@ final class SettingsViewModel: ObservableObject {
     private let notificationWarningProvider: () -> String?
     private var savedLaunchAtLogin: Bool
     private var clearMessageTask: Task<Void, Never>?
+    private var developerTapCount = 0
 
     init(
         counterController: CounterController,
@@ -152,6 +154,19 @@ final class SettingsViewModel: ObservableObject {
             NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
         } catch {
             setMessage("停用失败：\(error.localizedDescription)", kind: .error)
+        }
+    }
+
+    func registerDeveloperActivationTap() {
+        guard !developerSettingsVisible else {
+            return
+        }
+
+        developerTapCount += 1
+        if developerTapCount >= 5 {
+            developerTapCount = 0
+            developerSettingsVisible = true
+            setMessage("开发者配置已显示。", kind: .success, autoClear: true)
         }
     }
 
