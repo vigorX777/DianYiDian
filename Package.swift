@@ -21,7 +21,10 @@ let package = Package(
         .executableTarget(
             name: "DianYiDian",
             dependencies: ["DianYiDianCore"],
-            path: "Sources/DianYiDian"
+            path: "Sources/DianYiDian",
+            resources: [
+                .copy("Resources")
+            ]
         ),
         .executableTarget(
             name: "DianYiDianCoreChecks",
