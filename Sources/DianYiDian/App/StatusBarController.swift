@@ -419,6 +419,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     private func triggerReminderHint(scenarioID: UUID, text: String) {
+        let duration = counterController.settings.developerReminderBubbleDurationSeconds
         highlightedScenarioIDs.insert(scenarioID)
         refreshStatusItem(scenarioID: scenarioID)
         showTransientPopover(
@@ -431,7 +432,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             }
         )
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
             guard let self else {
                 return
             }

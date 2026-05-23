@@ -14,6 +14,9 @@ final class SettingsViewModel: ObservableObject {
     @Published var notifyWhenGoalReached: Bool
     @Published var checkInAnimationEnabled: Bool
     @Published var goalCelebrationEnabled: Bool
+    @Published var reminderSystemNotificationEnabled: Bool
+    @Published var reminderMenuBarBubbleEnabled: Bool
+    @Published var developerReminderBubbleDurationSeconds: Double
     @Published var menuBarDisplayMode: MenuBarDisplayMode
     @Published var scenarioDisplayMode: ScenarioDisplayMode
     @Published var scenarios: [CheckInScenario]
@@ -68,6 +71,9 @@ final class SettingsViewModel: ObservableObject {
         self.notifyWhenGoalReached = snapshot.settings.notifyWhenGoalReached
         self.checkInAnimationEnabled = snapshot.settings.checkInAnimationEnabled
         self.goalCelebrationEnabled = snapshot.settings.goalCelebrationEnabled
+        self.reminderSystemNotificationEnabled = snapshot.settings.reminderSystemNotificationEnabled
+        self.reminderMenuBarBubbleEnabled = snapshot.settings.reminderMenuBarBubbleEnabled
+        self.developerReminderBubbleDurationSeconds = snapshot.settings.developerReminderBubbleDurationSeconds
         self.menuBarDisplayMode = snapshot.settings.menuBarDisplayMode
         self.scenarioDisplayMode = snapshot.settings.scenarioDisplayMode
         self.scenarios = snapshot.scenarios
@@ -186,6 +192,10 @@ final class SettingsViewModel: ObservableObject {
         if reminderFixedHour != sanitizedReminderHour || reminderFixedMinute != sanitizedReminderMinute || reminderFixedTimes != sanitizedFixedTimes {
             validationNotes.append("固定提醒时间已修正。")
         }
+        let sanitizedBubbleDuration = AppSettings.sanitizeReminderBubbleDuration(developerReminderBubbleDurationSeconds)
+        if developerReminderBubbleDurationSeconds != sanitizedBubbleDuration {
+            validationNotes.append("轻提示显示秒数已限制在 0.5-10 秒。")
+        }
 
         itemName = sanitizedName
         dailyTarget = sanitizedDailyTarget
@@ -194,6 +204,7 @@ final class SettingsViewModel: ObservableObject {
         reminderFixedTimes = sanitizedFixedTimes
         reminderFixedHour = sanitizedFixedTimes[0].hour
         reminderFixedMinute = sanitizedFixedTimes[0].minute
+        developerReminderBubbleDurationSeconds = sanitizedBubbleDuration
 
         scenario.name = sanitizedName
         scenario.dailyTarget = sanitizedDailyTarget
@@ -219,7 +230,10 @@ final class SettingsViewModel: ObservableObject {
             menuBarDisplayMode: menuBarDisplayMode,
             scenarioDisplayMode: scenarioDisplayMode,
             checkInAnimationEnabled: checkInAnimationEnabled,
-            goalCelebrationEnabled: goalCelebrationEnabled
+            goalCelebrationEnabled: goalCelebrationEnabled,
+            reminderSystemNotificationEnabled: reminderSystemNotificationEnabled,
+            reminderMenuBarBubbleEnabled: reminderMenuBarBubbleEnabled,
+            developerReminderBubbleDurationSeconds: sanitizedBubbleDuration
         )
 
         do {
@@ -258,6 +272,9 @@ final class SettingsViewModel: ObservableObject {
         notifyWhenGoalReached = snapshot.settings.notifyWhenGoalReached
         checkInAnimationEnabled = snapshot.settings.checkInAnimationEnabled
         goalCelebrationEnabled = snapshot.settings.goalCelebrationEnabled
+        reminderSystemNotificationEnabled = snapshot.settings.reminderSystemNotificationEnabled
+        reminderMenuBarBubbleEnabled = snapshot.settings.reminderMenuBarBubbleEnabled
+        developerReminderBubbleDurationSeconds = snapshot.settings.developerReminderBubbleDurationSeconds
         menuBarDisplayMode = snapshot.settings.menuBarDisplayMode
         scenarioDisplayMode = snapshot.settings.scenarioDisplayMode
         selectedScenarioID = selectedID ?? snapshot.scenario.id

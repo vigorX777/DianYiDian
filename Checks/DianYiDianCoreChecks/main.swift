@@ -76,6 +76,9 @@ enum CoreChecks {
         check(settings.showIncrementFeedback, "legacy settings increment feedback")
         check(settings.notifyWhenGoalReached == false, "legacy settings goal feedback")
         check(settings.menuBarDisplayMode == .iconAndText, "legacy settings display mode default")
+        check(settings.reminderSystemNotificationEnabled, "legacy settings system notification default")
+        check(settings.reminderMenuBarBubbleEnabled, "legacy settings menu bubble default")
+        check(settings.developerReminderBubbleDurationSeconds == 2.0, "legacy settings bubble duration default")
     }
 
     private static func legacyScenarioDecodeDefaultsReminderSettings() throws {

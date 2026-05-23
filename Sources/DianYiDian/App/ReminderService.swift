@@ -53,6 +53,12 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
             return
         }
 
+        guard counterController.settings.reminderSystemNotificationEnabled else {
+            notificationPermissionWarning = nil
+            sendMenuBarOnlyReminders(now: now)
+            return
+        }
+
         center.getNotificationSettings { [weak self] settings in
             let authorizationStatus = settings.authorizationStatus
             Task { @MainActor in
@@ -136,14 +142,14 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
 
     private func sendMenuBarOnlyReminders(now: Date) {
         let snapshots = scheduler.scenariosToRemind(snapshots: counterController.reminderSnapshots(now: now), now: now)
-        for snapshot in snapshots where snapshot.scenario.reminderSettings.menuBarHintEnabled {
+        for snapshot in snapshots where shouldDeliverMenuBarHint(for: snapshot) {
             deliverMenuBarHintIfNeeded(snapshot: snapshot)
             counterController.markReminderSent(scenarioID: snapshot.scenario.id, at: now)
         }
     }
 
     private func deliverMenuBarHintIfNeeded(snapshot: CounterSnapshot) {
-        guard snapshot.scenario.reminderSettings.menuBarHintEnabled else {
+        guard shouldDeliverMenuBarHint(for: snapshot) else {
             return
         }
 
@@ -155,6 +161,10 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
                 "scenarioName": snapshot.scenario.name
             ]
         )
+    }
+
+    private func shouldDeliverMenuBarHint(for snapshot: CounterSnapshot) -> Bool {
+        snapshot.settings.reminderMenuBarBubbleEnabled && snapshot.scenario.reminderSettings.menuBarHintEnabled
     }
 
     nonisolated func userNotificationCenter(

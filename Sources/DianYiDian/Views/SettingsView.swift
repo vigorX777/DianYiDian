@@ -19,6 +19,7 @@ struct SettingsView: View {
                         VStack(spacing: 14) {
                             appSettingsPanel
                             scenarioEditorPanel
+                            developerSettingsPanel
                         }
                         .padding(.trailing, 2)
                     }
@@ -150,6 +151,14 @@ struct SettingsView: View {
                         settingRow("达标庆祝") {
                             Toggle("", isOn: $viewModel.goalCelebrationEnabled).labelsHidden()
                         }
+                        settingRow("系统通知") {
+                            Toggle("", isOn: $viewModel.reminderSystemNotificationEnabled).labelsHidden()
+                        }
+                    }
+                    GridRow {
+                        settingRow("菜单气泡") {
+                            Toggle("", isOn: $viewModel.reminderMenuBarBubbleEnabled).labelsHidden()
+                        }
                         Color.clear.frame(height: 1)
                     }
                 }
@@ -180,6 +189,33 @@ struct SettingsView: View {
                 if let notificationWarning = viewModel.notificationWarning {
                     WarningText(notificationWarning)
                 }
+            }
+        }
+    }
+
+    private var developerSettingsPanel: some View {
+        LiquidPanel {
+            VStack(alignment: .leading, spacing: 14) {
+                PanelTitle(title: "开发者配置", symbol: "hammer")
+
+                settingRow("气泡时长") {
+                    HStack(spacing: 8) {
+                        TextField("", value: $viewModel.developerReminderBubbleDurationSeconds, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 72)
+                            .onChange(of: viewModel.developerReminderBubbleDurationSeconds) { _, newValue in
+                                viewModel.developerReminderBubbleDurationSeconds = min(max(newValue, 0.5), 10)
+                            }
+                        Text("秒")
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                    }
+                }
+
+                Text("用于菜单栏轻提醒的展示时长，仅供开发和调试使用。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }

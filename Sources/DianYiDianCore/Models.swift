@@ -333,6 +333,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var scenarioDisplayMode: ScenarioDisplayMode
     public var checkInAnimationEnabled: Bool
     public var goalCelebrationEnabled: Bool
+    public var reminderSystemNotificationEnabled: Bool
+    public var reminderMenuBarBubbleEnabled: Bool
+    public var developerReminderBubbleDurationSeconds: Double
 
     private enum CodingKeys: String, CodingKey {
         case launchAtLogin
@@ -342,6 +345,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case scenarioDisplayMode
         case checkInAnimationEnabled
         case goalCelebrationEnabled
+        case reminderSystemNotificationEnabled
+        case reminderMenuBarBubbleEnabled
+        case developerReminderBubbleDurationSeconds
     }
 
     public init(
@@ -351,7 +357,10 @@ public struct AppSettings: Codable, Equatable, Sendable {
         menuBarDisplayMode: MenuBarDisplayMode = .iconAndText,
         scenarioDisplayMode: ScenarioDisplayMode = .currentScenario,
         checkInAnimationEnabled: Bool = true,
-        goalCelebrationEnabled: Bool = true
+        goalCelebrationEnabled: Bool = true,
+        reminderSystemNotificationEnabled: Bool = true,
+        reminderMenuBarBubbleEnabled: Bool = true,
+        developerReminderBubbleDurationSeconds: Double = 2.0
     ) {
         self.launchAtLogin = launchAtLogin
         self.showIncrementFeedback = showIncrementFeedback
@@ -360,6 +369,11 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.scenarioDisplayMode = scenarioDisplayMode
         self.checkInAnimationEnabled = checkInAnimationEnabled
         self.goalCelebrationEnabled = goalCelebrationEnabled
+        self.reminderSystemNotificationEnabled = reminderSystemNotificationEnabled
+        self.reminderMenuBarBubbleEnabled = reminderMenuBarBubbleEnabled
+        self.developerReminderBubbleDurationSeconds = Self.sanitizeReminderBubbleDuration(
+            developerReminderBubbleDurationSeconds
+        )
     }
 
     public init(from decoder: Decoder) throws {
@@ -371,6 +385,18 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.scenarioDisplayMode = try container.decodeIfPresent(ScenarioDisplayMode.self, forKey: .scenarioDisplayMode) ?? .currentScenario
         self.checkInAnimationEnabled = try container.decodeIfPresent(Bool.self, forKey: .checkInAnimationEnabled) ?? true
         self.goalCelebrationEnabled = try container.decodeIfPresent(Bool.self, forKey: .goalCelebrationEnabled) ?? true
+        self.reminderSystemNotificationEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderSystemNotificationEnabled) ?? true
+        self.reminderMenuBarBubbleEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderMenuBarBubbleEnabled) ?? true
+        self.developerReminderBubbleDurationSeconds = Self.sanitizeReminderBubbleDuration(
+            try container.decodeIfPresent(Double.self, forKey: .developerReminderBubbleDurationSeconds) ?? 2.0
+        )
+    }
+
+    public static func sanitizeReminderBubbleDuration(_ seconds: Double) -> Double {
+        guard seconds.isFinite else {
+            return 2.0
+        }
+        return min(10.0, max(0.5, seconds))
     }
 }
 
