@@ -37,11 +37,13 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
 
     func start() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.syncReminders()
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
         syncReminders()
     }
 

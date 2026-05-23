@@ -16,6 +16,8 @@ enum CoreChecks {
         try intervalReminderWaitsUntilDue()
         try intervalReminderFiresAfterThreshold()
         try intervalReminderSupportsArbitraryMinutes()
+        try intervalReminderWaitsAfterRecentReminder()
+        try intervalReminderRepeatsAfterReminderInterval()
         try reminderDoesNotFireAfterGoalReached()
         try fixedTimeReminderWaitsUntilDue()
         try fixedTimeReminderFiresAtDueTime()
@@ -234,6 +236,48 @@ enum CoreChecks {
         )
 
         check(decision.shouldRemind, "interval arbitrary minutes due")
+    }
+
+    private static func intervalReminderWaitsAfterRecentReminder() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            reminderSettings: ReminderSettings(mode: .interval, intervalMinutes: 7)
+        )
+        let state = ScenarioState(
+            scenarioID: scenario.id,
+            dayID: "2026-05-21",
+            lastCheckInAt: makeDate(year: 2026, month: 5, day: 21, hour: 9),
+            lastReminderSentAt: makeDate(year: 2026, month: 5, day: 21, hour: 9, minute: 7)
+        )
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 9, minute: 10)
+        )
+
+        check(decision.shouldRemind == false, "interval waits after recent reminder")
+    }
+
+    private static func intervalReminderRepeatsAfterReminderInterval() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            reminderSettings: ReminderSettings(mode: .interval, intervalMinutes: 7)
+        )
+        let state = ScenarioState(
+            scenarioID: scenario.id,
+            dayID: "2026-05-21",
+            lastCheckInAt: makeDate(year: 2026, month: 5, day: 21, hour: 9),
+            lastReminderSentAt: makeDate(year: 2026, month: 5, day: 21, hour: 9, minute: 7)
+        )
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 9, minute: 14)
+        )
+
+        check(decision.shouldRemind, "interval repeats after reminder interval")
     }
 
     private static func reminderDoesNotFireAfterGoalReached() throws {

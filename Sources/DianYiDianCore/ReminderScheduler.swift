@@ -55,12 +55,11 @@ public struct ReminderScheduler: Sendable {
         let startOfToday = calendar.startOfDay(for: now)
         let lastActivity = state.lastCheckInAt ?? startOfToday
         let lastReminder = state.lastReminderSentAt ?? .distantPast
+        let reminderBase = max(lastActivity, lastReminder)
         let interval = TimeInterval(scenario.reminderSettings.intervalMinutes * 60)
-        let dueAt = lastActivity.addingTimeInterval(interval)
+        let dueAt = reminderBase.addingTimeInterval(interval)
 
-        guard now >= dueAt,
-              lastReminder < dueAt
-        else {
+        guard now >= dueAt else {
             return ReminderDecision(shouldRemind: false, reason: .interval)
         }
         return ReminderDecision(shouldRemind: true, reason: .interval)
