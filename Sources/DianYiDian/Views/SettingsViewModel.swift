@@ -36,6 +36,7 @@ final class SettingsViewModel: ObservableObject {
     @Published var reminderIntervalMinutes: Int
     @Published var reminderFixedHour: Int
     @Published var reminderFixedMinute: Int
+    @Published var reminderFixedTimes: [ReminderTime]
     @Published var reminderMenuBarHintEnabled: Bool
     @Published var applyInitialCountToToday = false
     @Published var message: String?
@@ -82,6 +83,7 @@ final class SettingsViewModel: ObservableObject {
         self.reminderIntervalMinutes = snapshot.scenario.reminderSettings.intervalMinutes
         self.reminderFixedHour = snapshot.scenario.reminderSettings.fixedHour
         self.reminderFixedMinute = snapshot.scenario.reminderSettings.fixedMinute
+        self.reminderFixedTimes = snapshot.scenario.reminderSettings.fixedTimes
         self.reminderMenuBarHintEnabled = snapshot.scenario.reminderSettings.menuBarHintEnabled
     }
 
@@ -174,13 +176,14 @@ final class SettingsViewModel: ObservableObject {
         if initialCount != sanitizedInitialCount {
             validationNotes.append("今日初始次数已限制在 0-99。")
         }
-        let sanitizedReminderInterval = max(15, min(240, reminderIntervalMinutes))
+        let sanitizedReminderInterval = max(1, reminderIntervalMinutes)
         let sanitizedReminderHour = max(0, min(23, reminderFixedHour))
         let sanitizedReminderMinute = max(0, min(59, reminderFixedMinute))
+        let sanitizedFixedTimes = sanitizedReminderFixedTimes()
         if reminderIntervalMinutes != sanitizedReminderInterval {
-            validationNotes.append("提醒间隔已限制在 15-240 分钟。")
+            validationNotes.append("提醒间隔必须大于 0 分钟。")
         }
-        if reminderFixedHour != sanitizedReminderHour || reminderFixedMinute != sanitizedReminderMinute {
+        if reminderFixedHour != sanitizedReminderHour || reminderFixedMinute != sanitizedReminderMinute || reminderFixedTimes != sanitizedFixedTimes {
             validationNotes.append("固定提醒时间已修正。")
         }
 
@@ -188,8 +191,9 @@ final class SettingsViewModel: ObservableObject {
         dailyTarget = sanitizedDailyTarget
         initialCount = sanitizedInitialCount
         reminderIntervalMinutes = sanitizedReminderInterval
-        reminderFixedHour = sanitizedReminderHour
-        reminderFixedMinute = sanitizedReminderMinute
+        reminderFixedTimes = sanitizedFixedTimes
+        reminderFixedHour = sanitizedFixedTimes[0].hour
+        reminderFixedMinute = sanitizedFixedTimes[0].minute
 
         scenario.name = sanitizedName
         scenario.dailyTarget = sanitizedDailyTarget
@@ -201,8 +205,9 @@ final class SettingsViewModel: ObservableObject {
         scenario.reminderSettings = ReminderSettings(
             mode: reminderMode,
             intervalMinutes: sanitizedReminderInterval,
-            fixedHour: sanitizedReminderHour,
-            fixedMinute: sanitizedReminderMinute,
+            fixedHour: sanitizedFixedTimes[0].hour,
+            fixedMinute: sanitizedFixedTimes[0].minute,
+            fixedTimes: sanitizedFixedTimes,
             menuBarHintEnabled: reminderMenuBarHintEnabled
         )
 
@@ -274,8 +279,39 @@ final class SettingsViewModel: ObservableObject {
         reminderIntervalMinutes = scenario.reminderSettings.intervalMinutes
         reminderFixedHour = scenario.reminderSettings.fixedHour
         reminderFixedMinute = scenario.reminderSettings.fixedMinute
+        reminderFixedTimes = scenario.reminderSettings.fixedTimes
         reminderMenuBarHintEnabled = scenario.reminderSettings.menuBarHintEnabled
         applyInitialCountToToday = false
+    }
+
+    func addFixedReminderTime() {
+        let lastTime = reminderFixedTimes.last ?? ReminderTime()
+        let nextMinute = lastTime.minute + 1
+        let nextTime = ReminderTime(
+            hour: nextMinute >= 60 ? min(23, lastTime.hour + 1) : lastTime.hour,
+            minute: nextMinute >= 60 ? 0 : nextMinute
+        )
+        reminderFixedTimes.append(nextTime)
+    }
+
+    func removeFixedReminderTime(at index: Int) {
+        guard reminderFixedTimes.indices.contains(index),
+              reminderFixedTimes.count > 1
+        else {
+            return
+        }
+        reminderFixedTimes.remove(at: index)
+    }
+
+    private func sanitizedReminderFixedTimes() -> [ReminderTime] {
+        let unique = Set(reminderFixedTimes.map { ReminderTime(hour: $0.hour, minute: $0.minute) })
+        let sorted = unique.sorted {
+            if $0.hour == $1.hour {
+                return $0.minute < $1.minute
+            }
+            return $0.hour < $1.hour
+        }
+        return sorted.isEmpty ? [ReminderTime()] : sorted
     }
 
     private func setMessage(_ text: String, kind: SettingsMessageKind, autoClear: Bool = false) {

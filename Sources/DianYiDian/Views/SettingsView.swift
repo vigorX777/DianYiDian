@@ -129,27 +129,50 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 16) {
                 PanelTitle(title: "应用设置", symbol: "switch.2")
 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 12) {
-                    Toggle("开机自启", isOn: $viewModel.launchAtLogin)
-                    Toggle("打卡成功提示", isOn: $viewModel.showIncrementFeedback)
-                    Toggle("达到每日目标时提醒", isOn: $viewModel.notifyWhenGoalReached)
-                    Toggle("打卡动效", isOn: $viewModel.checkInAnimationEnabled)
-                    Toggle("达标小庆祝", isOn: $viewModel.goalCelebrationEnabled)
-                }
-
-                Picker("菜单栏显示", selection: $viewModel.menuBarDisplayMode) {
-                    ForEach(MenuBarDisplayMode.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
+                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 12) {
+                    GridRow {
+                        settingRow("开机自启") {
+                            Toggle("", isOn: $viewModel.launchAtLogin).labelsHidden()
+                        }
+                        settingRow("打卡提示") {
+                            Toggle("", isOn: $viewModel.showIncrementFeedback).labelsHidden()
+                        }
+                    }
+                    GridRow {
+                        settingRow("达标提醒") {
+                            Toggle("", isOn: $viewModel.notifyWhenGoalReached).labelsHidden()
+                        }
+                        settingRow("打卡动效") {
+                            Toggle("", isOn: $viewModel.checkInAnimationEnabled).labelsHidden()
+                        }
+                    }
+                    GridRow {
+                        settingRow("达标庆祝") {
+                            Toggle("", isOn: $viewModel.goalCelebrationEnabled).labelsHidden()
+                        }
+                        Color.clear.frame(height: 1)
                     }
                 }
-                .pickerStyle(.segmented)
 
-                Picker("场景展示", selection: $viewModel.scenarioDisplayMode) {
-                    ForEach(ScenarioDisplayMode.allCases, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
+                settingRow("菜单栏显示", labelWidth: 96) {
+                    Picker("", selection: $viewModel.menuBarDisplayMode) {
+                        ForEach(MenuBarDisplayMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
+
+                settingRow("场景展示", labelWidth: 96) {
+                    Picker("", selection: $viewModel.scenarioDisplayMode) {
+                        ForEach(ScenarioDisplayMode.allCases, id: \.self) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                }
 
                 if let shortcutWarning = viewModel.shortcutWarning {
                     WarningText(shortcutWarning)
@@ -166,33 +189,49 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 18) {
                 PanelTitle(title: "场景设置", symbol: viewModel.iconStyle.symbolName)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("场景名称")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                settingRow("场景名称") {
                     TextField("场景名称", text: $viewModel.itemName)
                         .textFieldStyle(.roundedBorder)
-                    if let validationMessage = viewModel.itemNameValidationMessage {
+                }
+                if let validationMessage = viewModel.itemNameValidationMessage {
+                    settingRow("") {
                         WarningText(validationMessage)
                     }
                 }
 
                 HStack(spacing: 18) {
-                    Stepper("每日目标次数：\(viewModel.dailyTarget)", value: $viewModel.dailyTarget, in: 1...99)
-                    Stepper("今日初始次数：\(viewModel.initialCount)", value: $viewModel.initialCount, in: 0...99)
+                    settingRow("每日目标") {
+                        Stepper("\(viewModel.dailyTarget)", value: $viewModel.dailyTarget, in: 1...99)
+                    }
+                    settingRow("今日初始") {
+                        Stepper("\(viewModel.initialCount)", value: $viewModel.initialCount, in: 0...99)
+                    }
                 }
 
-                Toggle("保存后应用到今日次数", isOn: $viewModel.applyInitialCountToToday)
+                settingRow("应用到今日") {
+                    Toggle("", isOn: $viewModel.applyInitialCountToToday).labelsHidden()
+                }
 
-                iconPicker
-                colorPicker
+                settingRow("场景图标", alignment: .top) {
+                    iconPicker
+                }
+
+                settingRow("主题色") {
+                    colorPicker
+                }
 
                 HStack(spacing: 18) {
-                    Toggle("启用场景", isOn: $viewModel.isEnabled)
-                    Toggle("固定到菜单栏", isOn: $viewModel.isPinnedToMenuBar)
+                    settingRow("启用场景") {
+                        Toggle("", isOn: $viewModel.isEnabled).labelsHidden()
+                    }
+                    settingRow("固定菜单栏") {
+                        Toggle("", isOn: $viewModel.isPinnedToMenuBar).labelsHidden()
+                    }
                 }
 
-                reminderPanel
+                settingRow("提醒", alignment: .top) {
+                    reminderPanel
+                }
 
                 HStack {
                     Button("停用场景") {
@@ -207,8 +246,6 @@ struct SettingsView: View {
 
     private var iconPicker: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("场景图标")
-                .font(.headline)
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(44), spacing: 8), count: 7), spacing: 8) {
                 ForEach(IconStyle.allCases, id: \.self) { style in
                     Button {
@@ -246,8 +283,6 @@ struct SettingsView: View {
     @ViewBuilder
     private var reminderPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("提醒")
-                .font(.headline)
             Picker("提醒方式", selection: $viewModel.reminderMode) {
                 ForEach(ReminderMode.allCases, id: \.self) { mode in
                     Text(mode.displayName).tag(mode)
@@ -262,23 +297,21 @@ struct SettingsView: View {
                 numericInputRow(
                     title: "间隔分钟",
                     value: $viewModel.reminderIntervalMinutes,
-                    range: 15...240,
+                    minimum: 1,
                     suffix: "分钟"
                 )
             case .fixedTime:
-                HStack {
-                    numericInputRow(
-                        title: "小时",
-                        value: $viewModel.reminderFixedHour,
-                        range: 0...23,
-                        suffix: "时"
-                    )
-                    numericInputRow(
-                        title: "分钟",
-                        value: $viewModel.reminderFixedMinute,
-                        range: 0...59,
-                        suffix: "分"
-                    )
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(viewModel.reminderFixedTimes.indices, id: \.self) { index in
+                        fixedReminderTimeRow(index: index)
+                    }
+
+                    Button {
+                        viewModel.addFixedReminderTime()
+                    } label: {
+                        Label("增加时间", systemImage: "plus.circle")
+                    }
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -298,22 +331,75 @@ struct SettingsView: View {
     private func numericInputRow(
         title: String,
         value: Binding<Int>,
-        range: ClosedRange<Int>,
+        minimum: Int,
+        maximum: Int? = nil,
         suffix: String
     ) -> some View {
         HStack(spacing: 8) {
             Text(title)
                 .foregroundStyle(.secondary)
-            Spacer()
+                .frame(width: 64, alignment: .trailing)
             TextField("", value: value, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 66)
                 .onChange(of: value.wrappedValue) { _, newValue in
-                    value.wrappedValue = min(max(newValue, range.lowerBound), range.upperBound)
+                    let lowerBounded = max(newValue, minimum)
+                    value.wrappedValue = maximum.map { min(lowerBounded, $0) } ?? lowerBounded
                 }
             Text(suffix)
                 .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func fixedReminderTimeRow(index: Int) -> some View {
+        HStack(spacing: 8) {
+            Text("时间 \(index + 1)")
+                .foregroundStyle(.secondary)
+                .frame(width: 64, alignment: .trailing)
+            TextField("", value: $viewModel.reminderFixedTimes[index].hour, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 52)
+                .onChange(of: viewModel.reminderFixedTimes[index].hour) { _, newValue in
+                    viewModel.reminderFixedTimes[index].hour = min(max(newValue, 0), 23)
+                }
+            Text("时")
+                .foregroundStyle(.secondary)
+            TextField("", value: $viewModel.reminderFixedTimes[index].minute, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 52)
+                .onChange(of: viewModel.reminderFixedTimes[index].minute) { _, newValue in
+                    viewModel.reminderFixedTimes[index].minute = min(max(newValue, 0), 59)
+                }
+            Text("分")
+                .foregroundStyle(.secondary)
+            Button {
+                viewModel.removeFixedReminderTime(at: index)
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.reminderFixedTimes.count <= 1)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func settingRow<Content: View>(
+        _ title: String,
+        labelWidth: CGFloat = 104,
+        alignment: VerticalAlignment = .center,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: alignment, spacing: 12) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: labelWidth, alignment: .trailing)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

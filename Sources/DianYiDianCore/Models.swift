@@ -92,11 +92,26 @@ public enum ReminderMode: String, Codable, CaseIterable, Equatable, Sendable {
     }
 }
 
+public struct ReminderTime: Codable, Equatable, Hashable, Sendable {
+    public var hour: Int
+    public var minute: Int
+
+    public init(hour: Int = 10, minute: Int = 0) {
+        self.hour = max(0, min(23, hour))
+        self.minute = max(0, min(59, minute))
+    }
+
+    public var displayText: String {
+        String(format: "%02d:%02d", hour, minute)
+    }
+}
+
 public struct ReminderSettings: Codable, Equatable, Sendable {
     public var mode: ReminderMode
     public var intervalMinutes: Int
     public var fixedHour: Int
     public var fixedMinute: Int
+    public var fixedTimes: [ReminderTime]
     public var menuBarHintEnabled: Bool
 
     private enum CodingKeys: String, CodingKey {
@@ -104,6 +119,7 @@ public struct ReminderSettings: Codable, Equatable, Sendable {
         case intervalMinutes
         case fixedHour
         case fixedMinute
+        case fixedTimes
         case menuBarHintEnabled
     }
 
@@ -112,12 +128,15 @@ public struct ReminderSettings: Codable, Equatable, Sendable {
         intervalMinutes: Int = 60,
         fixedHour: Int = 10,
         fixedMinute: Int = 0,
+        fixedTimes: [ReminderTime]? = nil,
         menuBarHintEnabled: Bool = true
     ) {
+        let sanitizedFixedTimes = Self.sanitizeFixedTimes(fixedTimes ?? [ReminderTime(hour: fixedHour, minute: fixedMinute)])
         self.mode = mode
-        self.intervalMinutes = max(15, min(240, intervalMinutes))
-        self.fixedHour = max(0, min(23, fixedHour))
-        self.fixedMinute = max(0, min(59, fixedMinute))
+        self.intervalMinutes = max(1, intervalMinutes)
+        self.fixedTimes = sanitizedFixedTimes
+        self.fixedHour = sanitizedFixedTimes[0].hour
+        self.fixedMinute = sanitizedFixedTimes[0].minute
         self.menuBarHintEnabled = menuBarHintEnabled
     }
 
@@ -128,8 +147,20 @@ public struct ReminderSettings: Codable, Equatable, Sendable {
             intervalMinutes: try container.decodeIfPresent(Int.self, forKey: .intervalMinutes) ?? 60,
             fixedHour: try container.decodeIfPresent(Int.self, forKey: .fixedHour) ?? 10,
             fixedMinute: try container.decodeIfPresent(Int.self, forKey: .fixedMinute) ?? 0,
+            fixedTimes: try container.decodeIfPresent([ReminderTime].self, forKey: .fixedTimes),
             menuBarHintEnabled: try container.decodeIfPresent(Bool.self, forKey: .menuBarHintEnabled) ?? true
         )
+    }
+
+    private static func sanitizeFixedTimes(_ fixedTimes: [ReminderTime]) -> [ReminderTime] {
+        let unique = Set(fixedTimes.map { ReminderTime(hour: $0.hour, minute: $0.minute) })
+        let sorted = unique.sorted {
+            if $0.hour == $1.hour {
+                return $0.minute < $1.minute
+            }
+            return $0.hour < $1.hour
+        }
+        return sorted.isEmpty ? [ReminderTime()] : sorted
     }
 }
 

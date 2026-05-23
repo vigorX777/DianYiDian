@@ -11,17 +11,45 @@ struct StatusMenuScenarioRow: Identifiable, Equatable {
     let isSelected: Bool
 }
 
-struct StatusMenuView: View {
+struct StatusMenuScenarioData: Identifiable {
+    let id: UUID
     let snapshot: CounterSnapshot
     let monthProgress: MonthProgress
     let lastCheckInText: String
-    let scenarios: [StatusMenuScenarioRow]
-    let onIncrement: () -> Void
-    let onUndo: () -> Void
-    let onReset: () -> Void
+}
+
+struct StatusMenuView: View {
+    let initialScenarioID: UUID
+    let scenarioData: [StatusMenuScenarioData]
+    let onIncrement: (UUID) -> Void
+    let onUndo: (UUID) -> Void
+    let onReset: (UUID) -> Void
     let onSelectScenario: (UUID) -> Void
     let onOpenSettings: () -> Void
     let onQuit: () -> Void
+
+    @State private var selectedScenarioID: UUID
+
+    init(
+        initialScenarioID: UUID,
+        scenarioData: [StatusMenuScenarioData],
+        onIncrement: @escaping (UUID) -> Void,
+        onUndo: @escaping (UUID) -> Void,
+        onReset: @escaping (UUID) -> Void,
+        onSelectScenario: @escaping (UUID) -> Void,
+        onOpenSettings: @escaping () -> Void,
+        onQuit: @escaping () -> Void
+    ) {
+        self.initialScenarioID = initialScenarioID
+        self.scenarioData = scenarioData
+        self.onIncrement = onIncrement
+        self.onUndo = onUndo
+        self.onReset = onReset
+        self.onSelectScenario = onSelectScenario
+        self.onOpenSettings = onOpenSettings
+        self.onQuit = onQuit
+        self._selectedScenarioID = State(initialValue: initialScenarioID)
+    }
 
     var body: some View {
         ZStack {
@@ -29,9 +57,9 @@ struct StatusMenuView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 header
-                LiquidMonthCalendarView(monthProgress: monthProgress, themeColor: snapshot.scenario.themeColor)
+                LiquidMonthCalendarView(monthProgress: currentData.monthProgress, themeColor: currentSnapshot.scenario.themeColor)
 
-                if scenarios.count > 1 {
+                if scenarioData.count > 1 {
                     scenarioSwitcher
                 }
 
@@ -39,26 +67,34 @@ struct StatusMenuView: View {
             }
             .padding(12)
         }
-        .frame(width: 292)
+        .frame(width: 326)
+    }
+
+    private var currentData: StatusMenuScenarioData {
+        scenarioData.first { $0.id == selectedScenarioID } ?? scenarioData[0]
+    }
+
+    private var currentSnapshot: CounterSnapshot {
+        currentData.snapshot
     }
 
     private var header: some View {
         HStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(themeColor(snapshot.scenario.themeColor).opacity(0.22))
+                    .fill(themeColor(currentSnapshot.scenario.themeColor).opacity(0.22))
                     .overlay(Circle().stroke(Color.white.opacity(0.45), lineWidth: 1))
-                Image(systemName: snapshot.scenario.iconStyle.symbolName)
+                Image(systemName: currentSnapshot.scenario.iconStyle.symbolName)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(themeColor(snapshot.scenario.themeColor))
+                    .foregroundStyle(themeColor(currentSnapshot.scenario.themeColor))
             }
             .frame(width: 36, height: 36)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(snapshot.scenario.name)
+                Text(currentSnapshot.scenario.name)
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .lineLimit(1)
-                Text(lastCheckInText)
+                Text(currentData.lastCheckInText)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -66,7 +102,7 @@ struct StatusMenuView: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(snapshot.state.count)/\(snapshot.scenario.dailyTarget)")
+                Text("\(currentSnapshot.state.count)/\(currentSnapshot.scenario.dailyTarget)")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
                 Text("今日")
                     .font(.caption2)
@@ -74,7 +110,7 @@ struct StatusMenuView: View {
             }
         }
         .padding(10)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(menuPanelFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.white.opacity(0.28), lineWidth: 1)
@@ -88,74 +124,102 @@ struct StatusMenuView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 2)
 
-            ForEach(scenarios) { scenario in
-                Button {
-                    onSelectScenario(scenario.id)
-                } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: scenario.iconStyle.symbolName)
-                            .font(.system(size: 13, weight: .semibold))
-                            .frame(width: 22, height: 22)
+            ForEach(scenarioData) { scenarioData in
+                let snapshot = scenarioData.snapshot
+                let scenario = snapshot.scenario
+                let isSelected = scenario.id == selectedScenarioID
+                HStack(spacing: 9) {
+                    Image(systemName: scenario.iconStyle.symbolName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(width: 22, height: 22)
+                        .foregroundStyle(themeColor(scenario.themeColor))
+                        .background(themeColor(scenario.themeColor).opacity(0.15), in: Circle())
+                    Text(scenario.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .lineLimit(1)
+                    Spacer()
+                    Text("\(snapshot.state.count)/\(scenario.dailyTarget)")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    if isSelected {
+                        Image(systemName: "checkmark")
+                            .font(.caption)
                             .foregroundStyle(themeColor(scenario.themeColor))
-                            .background(themeColor(scenario.themeColor).opacity(0.15), in: Circle())
-                        Text(scenario.name)
-                            .font(.system(size: 13, weight: .medium))
-                            .lineLimit(1)
-                        Spacer()
-                        Text("\(scenario.count)/\(scenario.target)")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                        if scenario.isSelected {
-                            Image(systemName: "checkmark")
-                                .font(.caption)
-                                .foregroundStyle(themeColor(scenario.themeColor))
-                        }
-                    }
-                    .padding(.vertical, 5)
-                    .padding(.horizontal, 9)
-                    .background {
-                        RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .fill(scenario.isSelected ? Color.white.opacity(0.20) : Color.white.opacity(0.07))
                     }
                 }
-                .buttonStyle(.plain)
+                .padding(.vertical, 7)
+                .padding(.horizontal, 10)
+                .background {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .fill(isSelected ? Color.white.opacity(0.34) : Color.white.opacity(0.14))
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            guard selectedScenarioID != scenario.id else {
+                                return
+                            }
+                            selectedScenarioID = scenario.id
+                            onSelectScenario(scenario.id)
+                        }
+                )
+                .onTapGesture {
+                    selectedScenarioID = scenario.id
+                    onSelectScenario(scenario.id)
+                }
             }
         }
     }
 
     private var actionBar: some View {
-        VStack(spacing: 7) {
-            HStack(spacing: 7) {
-                Button(action: onIncrement) {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Button {
+                    onIncrement(selectedScenarioID)
+                } label: {
                     Label("打卡", systemImage: "plus")
                         .frame(maxWidth: .infinity)
+                        .frame(height: 36)
                 }
                 .buttonStyle(.borderedProminent)
 
-                Button(action: onUndo) {
+                Button {
+                    onUndo(selectedScenarioID)
+                } label: {
                     Label("撤销", systemImage: "arrow.uturn.backward")
                         .frame(maxWidth: .infinity)
+                        .frame(height: 36)
                 }
-                .disabled(!snapshot.state.hasUndoableIncrement || snapshot.state.count == 0)
+                .disabled(!currentSnapshot.state.hasUndoableIncrement || currentSnapshot.state.count == 0)
 
-                Button(action: onReset) {
+                Button {
+                    onReset(selectedScenarioID)
+                } label: {
                     Label("重置", systemImage: "arrow.clockwise")
                         .frame(maxWidth: .infinity)
+                        .frame(height: 36)
                 }
             }
 
-            HStack(spacing: 7) {
+            HStack(spacing: 8) {
                 Button(action: onOpenSettings) {
                     Label("设置", systemImage: "gearshape")
                         .frame(maxWidth: .infinity)
+                        .frame(height: 36)
                 }
                 Button(role: .destructive, action: onQuit) {
                     Label("退出", systemImage: "power")
                         .frame(maxWidth: .infinity)
+                        .frame(height: 36)
                 }
             }
         }
-        .controlSize(.mini)
+        .controlSize(.regular)
+    }
+
+    private var menuPanelFill: some ShapeStyle {
+        Color(nsColor: .controlBackgroundColor).opacity(0.96)
     }
 
     private func themeColor(_ color: ThemeColor) -> Color {
@@ -175,23 +239,28 @@ private struct LiquidMonthCalendarView: View {
     let monthProgress: MonthProgress
     let themeColor: ThemeColor
 
-    private let columns = Array(repeating: GridItem(.fixed(28), spacing: 5), count: 7)
+    private let cellWidth: CGFloat = 34
+    private let cellHeight: CGFloat = 30
+    private let columns = Array(repeating: GridItem(.fixed(34), spacing: 6), count: 7)
+    private var menuPanelFill: some ShapeStyle {
+        Color(nsColor: .controlBackgroundColor).opacity(0.96)
+    }
 
     var body: some View {
-        VStack(spacing: 7) {
+        VStack(spacing: 9) {
             Text(monthProgress.monthTitle)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
 
-            LazyVGrid(columns: columns, spacing: 5) {
+            LazyVGrid(columns: columns, spacing: 6) {
                 ForEach(monthProgress.weekdaySymbols, id: \.self) { symbol in
                     Text(symbol)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                        .frame(width: 28)
+                        .frame(width: cellWidth)
                 }
 
                 ForEach(0..<monthProgress.leadingBlankCount, id: \.self) { _ in
-                    Color.clear.frame(width: 28, height: 24)
+                    Color.clear.frame(width: cellWidth, height: cellHeight)
                 }
 
                 ForEach(monthProgress.days, id: \.dayID) { day in
@@ -199,8 +268,8 @@ private struct LiquidMonthCalendarView: View {
                 }
             }
         }
-        .padding(10)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(12)
+        .background(menuPanelFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.white.opacity(0.24), lineWidth: 1)
@@ -208,39 +277,43 @@ private struct LiquidMonthCalendarView: View {
     }
 
     private func dayCell(_ day: DayProgress) -> some View {
-        ZStack(alignment: .bottom) {
+        ZStack {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .fill(day.isFuture ? Color.white.opacity(0.08) : Color.white.opacity(0.14))
+                .fill(day.isFuture ? Color.white.opacity(0.18) : Color.white.opacity(0.26))
 
             if !day.isFuture, day.completionRatio > 0 {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                color(for: day).opacity(0.75),
-                                color(for: day).opacity(0.42)
-                            ],
-                            startPoint: .bottom,
-                            endPoint: .top
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    color(for: day).opacity(0.86),
+                                    color(for: day).opacity(0.54)
+                                ],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
                         )
-                    )
-                    .frame(height: max(2, 24 * CGFloat(day.completionRatio)))
-                    .overlay(alignment: .top) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.30))
-                            .frame(height: 1)
-                            .padding(.horizontal, 4)
-                    }
+                        .frame(height: max(3, cellHeight * CGFloat(day.completionRatio)))
+                        .overlay(alignment: .top) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.38))
+                                .frame(height: 1)
+                                .padding(.horizontal, 4)
+                        }
+                }
             }
 
             Text("\(day.dayNumber)")
-                .font(.system(size: 9, weight: day.isToday ? .bold : .medium, design: .rounded))
+                .font(.system(size: 11, weight: day.isToday ? .bold : .medium, design: .rounded))
                 .foregroundStyle(day.isFuture ? Color.secondary.opacity(0.55) : Color.primary)
+                .frame(width: cellWidth, height: cellHeight, alignment: .center)
         }
-        .frame(width: 28, height: 24)
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .frame(width: cellWidth, height: cellHeight)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(dayBorder(day), lineWidth: day.isToday ? 1.4 : 1)
         )
     }
@@ -275,11 +348,11 @@ private struct StatusMenuBackdrop: View {
     var body: some View {
         ZStack {
             Rectangle()
-                .fill(.ultraThinMaterial)
+                .fill(Color(nsColor: .windowBackgroundColor).opacity(0.97))
             LinearGradient(
                 colors: [
-                    Color.white.opacity(0.34),
-                    Color.accentColor.opacity(0.10),
+                    Color.white.opacity(0.22),
+                    Color.accentColor.opacity(0.06),
                     Color.black.opacity(0.05)
                 ],
                 startPoint: .topLeading,

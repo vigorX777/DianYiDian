@@ -15,10 +15,12 @@ enum CoreChecks {
         try defaultScenarioReminderModeIsNone()
         try intervalReminderWaitsUntilDue()
         try intervalReminderFiresAfterThreshold()
+        try intervalReminderSupportsArbitraryMinutes()
         try reminderDoesNotFireAfterGoalReached()
         try fixedTimeReminderWaitsUntilDue()
         try fixedTimeReminderFiresAtDueTime()
         try fixedTimeReminderDoesNotRepeatSameDay()
+        try fixedTimeReminderSupportsMultipleTimes()
         try rolloverResetsReminderState()
         try addedScenariosKeepIndependentCounts()
         try selectingScenarioChangesCurrentSnapshot()
@@ -95,6 +97,7 @@ enum CoreChecks {
         check(scenario.reminderSettings.mode == .none, "legacy scenario reminder mode")
         check(scenario.reminderSettings.intervalMinutes == 60, "legacy scenario interval")
         check(scenario.reminderSettings.fixedHour == 10, "legacy scenario fixed hour")
+        check(scenario.reminderSettings.fixedTimes == [ReminderTime(hour: 10, minute: 0)], "legacy scenario fixed times")
     }
 
     private static func incrementAddsOneToTodayCount() throws {
@@ -213,6 +216,26 @@ enum CoreChecks {
         check(decision.shouldRemind, "interval due")
     }
 
+    private static func intervalReminderSupportsArbitraryMinutes() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            reminderSettings: ReminderSettings(mode: .interval, intervalMinutes: 7)
+        )
+        let state = ScenarioState(
+            scenarioID: scenario.id,
+            dayID: "2026-05-21",
+            lastCheckInAt: makeDate(year: 2026, month: 5, day: 21, hour: 9)
+        )
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 9, minute: 7)
+        )
+
+        check(decision.shouldRemind, "interval arbitrary minutes due")
+    }
+
     private static func reminderDoesNotFireAfterGoalReached() throws {
         let scheduler = ReminderScheduler(calendar: gregorianCalendar())
         let scenario = CheckInScenario(
@@ -284,6 +307,32 @@ enum CoreChecks {
         )
 
         check(decision.shouldRemind == false, "fixed time no repeat")
+    }
+
+    private static func fixedTimeReminderSupportsMultipleTimes() throws {
+        let scheduler = ReminderScheduler(calendar: gregorianCalendar())
+        let scenario = CheckInScenario(
+            reminderSettings: ReminderSettings(
+                mode: .fixedTime,
+                fixedTimes: [
+                    ReminderTime(hour: 10, minute: 1),
+                    ReminderTime(hour: 10, minute: 3)
+                ]
+            )
+        )
+        let state = ScenarioState(
+            scenarioID: scenario.id,
+            dayID: "2026-05-21",
+            lastReminderSentAt: makeDate(year: 2026, month: 5, day: 21, hour: 10, minute: 2)
+        )
+
+        let decision = scheduler.decision(
+            scenario: scenario,
+            state: state,
+            now: makeDate(year: 2026, month: 5, day: 21, hour: 10, minute: 3)
+        )
+
+        check(decision.shouldRemind, "fixed time multiple due")
     }
 
     private static func rolloverResetsReminderState() throws {

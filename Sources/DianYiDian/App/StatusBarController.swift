@@ -10,6 +10,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let soundFeedbackService = SoundFeedbackService()
     private var statusItems: [UUID: NSStatusItem] = [:]
     private var activeMenu: NSMenu?
+    private var shouldRebuildAfterMenuClose = false
+    private var reopenMenuAfterCloseScenarioID: UUID?
     private var highlightedScenarioIDs: Set<UUID> = []
     private var celebratingScenarioIDs: Set<UUID> = []
     private var celebrationPopovers: [UUID: NSPopover] = [:]
@@ -92,7 +94,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
         refreshAllStatusItems()
 
-        guard let item = statusItems[scenarioID] else {
+        let anchorScenarioID = statusItems[scenarioID] == nil ? statusItems.keys.first : scenarioID
+        guard let anchorScenarioID,
+              let item = statusItems[anchorScenarioID]
+        else {
             return
         }
         guard let button = item.button else {
@@ -100,12 +105,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
 
         let hostingView = NSHostingView(rootView: makeStatusMenuView(scenarioID: scenarioID))
-        hostingView.frame = NSRect(x: 0, y: 0, width: 292, height: 1)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 326, height: 1)
         let fittingSize = hostingView.fittingSize
         hostingView.frame = NSRect(
             x: 0,
             y: 0,
-            width: 292,
+            width: 326,
             height: min(520, max(320, fittingSize.height))
         )
 
@@ -122,25 +127,22 @@ final class StatusBarController: NSObject, NSMenuDelegate {
 
     private func makeStatusMenuView(scenarioID: UUID) -> StatusMenuView {
         StatusMenuView(
-            snapshot: counterController.snapshot(for: scenarioID),
-            monthProgress: counterController.currentMonthProgress(scenarioID: scenarioID),
-            lastCheckInText: lastCheckInText(for: counterController.snapshot(for: scenarioID).state.lastCheckInAt),
-            scenarios: statusMenuScenarioRows(),
-            onIncrement: { [weak self] in
+            initialScenarioID: scenarioID,
+            scenarioData: statusMenuScenarioData(),
+            onIncrement: { [weak self] selectedID in
                 self?.closeMenuPopover()
-                self?.increment(scenarioID: scenarioID)
+                self?.increment(scenarioID: selectedID)
             },
-            onUndo: { [weak self] in
+            onUndo: { [weak self] selectedID in
                 self?.closeMenuPopover()
-                self?.undo(scenarioID: scenarioID)
+                self?.undo(scenarioID: selectedID)
             },
-            onReset: { [weak self] in
+            onReset: { [weak self] selectedID in
                 self?.closeMenuPopover()
-                self?.reset(scenarioID: scenarioID)
+                self?.reset(scenarioID: selectedID)
             },
             onSelectScenario: { [weak self] selectedID in
-                self?.closeMenuPopover()
-                self?.selectScenario(id: selectedID)
+                self?.selectScenarioInOpenMenu(id: selectedID)
             },
             onOpenSettings: { [weak self] in
                 self?.closeMenuPopover()
@@ -210,6 +212,21 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
     }
 
+    private func selectScenarioInOpenMenu(id scenarioID: UUID) {
+        counterController.selectScenario(id: scenarioID)
+        shouldRebuildAfterMenuClose = true
+        reopenMenuAfterCloseScenarioID = scenarioID
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self,
+                  self.activeMenu != nil,
+                  self.reopenMenuAfterCloseScenarioID == scenarioID
+            else {
+                return
+            }
+            self.reopenMenuAfterCloseScenarioID = nil
+        }
+    }
+
     private func closeMenuPopover() {
         activeMenu?.cancelTracking()
     }
@@ -220,20 +237,29 @@ final class StatusBarController: NSObject, NSMenuDelegate {
                 item.menu = nil
             }
             activeMenu = nil
+            if shouldRebuildAfterMenuClose {
+                shouldRebuildAfterMenuClose = false
+                let scenarioIDToReopen = reopenMenuAfterCloseScenarioID
+                reopenMenuAfterCloseScenarioID = nil
+                rebuildStatusItems()
+                NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: self)
+                if let scenarioIDToReopen {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
+                        self?.showMenu(scenarioID: scenarioIDToReopen)
+                    }
+                }
+            }
         }
     }
 
-    private func statusMenuScenarioRows() -> [StatusMenuScenarioRow] {
+    private func statusMenuScenarioData() -> [StatusMenuScenarioData] {
         counterController.enabledScenarios.map { scenario in
             let snapshot = counterController.snapshot(for: scenario.id)
-            return StatusMenuScenarioRow(
+            return StatusMenuScenarioData(
                 id: scenario.id,
-                name: scenario.name,
-                iconStyle: scenario.iconStyle,
-                themeColor: scenario.themeColor,
-                count: snapshot.state.count,
-                target: scenario.dailyTarget,
-                isSelected: scenario.id == counterController.currentScenarioID
+                snapshot: snapshot,
+                monthProgress: counterController.currentMonthProgress(scenarioID: scenario.id),
+                lastCheckInText: lastCheckInText(for: snapshot.state.lastCheckInAt)
             )
         }
     }

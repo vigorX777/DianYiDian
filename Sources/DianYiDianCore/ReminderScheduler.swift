@@ -72,17 +72,20 @@ public struct ReminderScheduler: Sendable {
         now: Date
     ) -> ReminderDecision {
         let settings = scenario.reminderSettings
-        let dueAt = calendar.date(
-            bySettingHour: settings.fixedHour,
-            minute: settings.fixedMinute,
-            second: 0,
-            of: now
-        ) ?? now
-        let lastReminder = state.lastReminderSentAt
+        let lastReminder = state.lastReminderSentAt ?? .distantPast
+        let hasDueTime = settings.fixedTimes.contains { reminderTime in
+            guard let dueAt = calendar.date(
+                bySettingHour: reminderTime.hour,
+                minute: reminderTime.minute,
+                second: 0,
+                of: now
+            ) else {
+                return false
+            }
+            return now >= dueAt && lastReminder < dueAt
+        }
 
-        guard now >= dueAt,
-              lastReminder.map({ !calendar.isDate($0, inSameDayAs: now) }) ?? true
-        else {
+        guard hasDueTime else {
             return ReminderDecision(shouldRemind: false, reason: .fixedTime)
         }
         return ReminderDecision(shouldRemind: true, reason: .fixedTime)
