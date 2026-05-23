@@ -26,6 +26,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             name: .dianYiDianCounterDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(reminderDidFire(_:)),
+            name: .dianYiDianReminderDidFire,
+            object: nil
+        )
         rebuildStatusItems()
     }
 
@@ -184,6 +190,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             return
         }
         refreshAllStatusItems()
+    }
+
+    @objc private func reminderDidFire(_ notification: Notification) {
+        guard let idString = notification.userInfo?["scenarioID"] as? String,
+              let scenarioID = UUID(uuidString: idString)
+        else {
+            return
+        }
+        let scenarioName = notification.userInfo?["scenarioName"] as? String
+            ?? counterController.snapshot(for: scenarioID).scenario.name
+        triggerReminderHint(scenarioID: scenarioID, text: "\(reminderVerb(for: scenarioName))了")
     }
 
     private func undo(scenarioID: UUID) {
@@ -388,7 +405,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let scenarioID = snapshot.scenario.id
         celebratingScenarioIDs.insert(scenarioID)
         refreshStatusItem(scenarioID: scenarioID)
-        showGoalPopover(scenarioID: scenarioID, text: "今日\(snapshot.scenario.name)完成")
+        showTransientPopover(scenarioID: scenarioID, text: "今日\(snapshot.scenario.name)完成")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
             guard let self else {
@@ -401,7 +418,23 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    private func showGoalPopover(scenarioID: UUID, text: String) {
+    private func triggerReminderHint(scenarioID: UUID, text: String) {
+        highlightedScenarioIDs.insert(scenarioID)
+        refreshStatusItem(scenarioID: scenarioID)
+        showTransientPopover(scenarioID: scenarioID, text: text)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
+            guard let self else {
+                return
+            }
+            highlightedScenarioIDs.remove(scenarioID)
+            celebrationPopovers[scenarioID]?.close()
+            celebrationPopovers.removeValue(forKey: scenarioID)
+            refreshStatusItem(scenarioID: scenarioID)
+        }
+    }
+
+    private func showTransientPopover(scenarioID: UUID, text: String) {
         guard let button = statusItems[scenarioID]?.button else {
             return
         }
@@ -414,6 +447,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         popover.contentViewController = CelebrationViewController(text: text)
         celebrationPopovers[scenarioID] = popover
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+
+    private func reminderVerb(for scenarioName: String) -> String {
+        let trimmedName = scenarioName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            return "该打卡"
+        }
+        if trimmedName.hasPrefix("喝") || trimmedName.hasPrefix("吃") || trimmedName.hasPrefix("运动") {
+            return "该\(trimmedName)"
+        }
+        return "该\(trimmedName)"
     }
 
     private func presentError(_ message: String) {

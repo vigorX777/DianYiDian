@@ -3,7 +3,7 @@ import Foundation
 import UserNotifications
 
 @MainActor
-final class ReminderService {
+final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
     private let counterController: CounterController
     private let scheduler = ReminderScheduler()
     private let center = UNUserNotificationCenter.current()
@@ -13,6 +13,8 @@ final class ReminderService {
 
     init(counterController: CounterController) {
         self.counterController = counterController
+        super.init()
+        center.delegate = self
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(counterDidChange),
@@ -28,6 +30,9 @@ final class ReminderService {
     func stop() {
         timer?.invalidate()
         timer = nil
+        if center.delegate === self {
+            center.delegate = nil
+        }
     }
 
     func start() {
@@ -62,6 +67,7 @@ final class ReminderService {
                     self.requestAuthorizationIfNeeded()
                 default:
                     self.notificationPermissionWarning = "需要在系统设置中允许通知。"
+                    self.sendMenuBarOnlyReminders(now: now)
                 }
             }
         }
@@ -79,7 +85,13 @@ final class ReminderService {
 
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
                 Task { @MainActor in
-                    self?.notificationPermissionWarning = granted ? nil : "需要在系统设置中允许通知。"
+                    guard let self else {
+                        return
+                    }
+                    self.notificationPermissionWarning = granted ? nil : "需要在系统设置中允许通知。"
+                    if granted {
+                        self.syncReminders()
+                    }
                 }
             }
         }
@@ -88,6 +100,8 @@ final class ReminderService {
     private func sendDueReminders(now: Date) {
         let snapshots = scheduler.scenariosToRemind(snapshots: counterController.reminderSnapshots(now: now), now: now)
         for snapshot in snapshots {
+            deliverMenuBarHintIfNeeded(snapshot: snapshot)
+
             let content = UNMutableNotificationContent()
             content.title = snapshot.scenario.name
             content.body = "\(reminderVerb(for: snapshot.scenario.name))了"
@@ -102,8 +116,51 @@ final class ReminderService {
             )
 
             center.add(request)
+            { [weak self] error in
+                Task { @MainActor in
+                    guard let self else {
+                        return
+                    }
+                    if let error {
+                        self.notificationPermissionWarning = "提醒发送失败：\(error.localizedDescription)"
+                        return
+                    }
+                    self.notificationPermissionWarning = nil
+                    self.counterController.markReminderSent(scenarioID: snapshot.scenario.id, at: now)
+                }
+            }
+        }
+    }
+
+    private func sendMenuBarOnlyReminders(now: Date) {
+        let snapshots = scheduler.scenariosToRemind(snapshots: counterController.reminderSnapshots(now: now), now: now)
+        for snapshot in snapshots where snapshot.scenario.reminderSettings.menuBarHintEnabled {
+            deliverMenuBarHintIfNeeded(snapshot: snapshot)
             counterController.markReminderSent(scenarioID: snapshot.scenario.id, at: now)
         }
+    }
+
+    private func deliverMenuBarHintIfNeeded(snapshot: CounterSnapshot) {
+        guard snapshot.scenario.reminderSettings.menuBarHintEnabled else {
+            return
+        }
+
+        NotificationCenter.default.post(
+            name: .dianYiDianReminderDidFire,
+            object: self,
+            userInfo: [
+                "scenarioID": snapshot.scenario.id.uuidString,
+                "scenarioName": snapshot.scenario.name
+            ]
+        )
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
     }
 
     private func hasReminderEnabledScenario(now: Date) -> Bool {
