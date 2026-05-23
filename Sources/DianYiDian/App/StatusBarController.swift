@@ -421,9 +421,17 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func triggerReminderHint(scenarioID: UUID, text: String) {
         highlightedScenarioIDs.insert(scenarioID)
         refreshStatusItem(scenarioID: scenarioID)
-        showTransientPopover(scenarioID: scenarioID, text: text)
+        showTransientPopover(
+            scenarioID: scenarioID,
+            text: text,
+            onClick: { [weak self] in
+                self?.celebrationPopovers[scenarioID]?.close()
+                self?.celebrationPopovers.removeValue(forKey: scenarioID)
+                self?.increment(scenarioID: scenarioID)
+            }
+        )
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
             guard let self else {
                 return
             }
@@ -434,8 +442,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    private func showTransientPopover(scenarioID: UUID, text: String) {
-        guard let button = statusItems[scenarioID]?.button else {
+    private func showTransientPopover(scenarioID: UUID, text: String, onClick: (() -> Void)? = nil) {
+        guard let button = popoverAnchorButton(for: scenarioID) else {
             return
         }
 
@@ -443,10 +451,24 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         let popover = NSPopover()
         popover.behavior = .transient
         popover.animates = true
-        popover.contentSize = NSSize(width: 150, height: 46)
-        popover.contentViewController = CelebrationViewController(text: text)
+        popover.contentSize = NSSize(width: 168, height: 52)
+        popover.contentViewController = TransientMessageViewController(text: text, onClick: onClick)
         celebrationPopovers[scenarioID] = popover
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+
+    private func popoverAnchorButton(for scenarioID: UUID) -> NSStatusBarButton? {
+        if let button = statusItems[scenarioID]?.button {
+            return button
+        }
+
+        for scenario in visibleMenuBarScenarios() {
+            if let button = statusItems[scenario.id]?.button {
+                return button
+            }
+        }
+
+        return statusItems.values.compactMap(\.button).first
     }
 
     private func reminderVerb(for scenarioName: String) -> String {
@@ -468,11 +490,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 }
 
-private final class CelebrationViewController: NSViewController {
+private final class TransientMessageViewController: NSViewController {
     private let text: String
+    private let onClick: (() -> Void)?
 
-    init(text: String) {
+    init(text: String, onClick: (() -> Void)? = nil) {
         self.text = text
+        self.onClick = onClick
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -482,7 +506,7 @@ private final class CelebrationViewController: NSViewController {
     }
 
     override func loadView() {
-        let container = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 150, height: 46))
+        let container = NSVisualEffectView(frame: NSRect(x: 0, y: 0, width: 168, height: 52))
         container.material = .popover
         container.blendingMode = .behindWindow
         container.state = .active
@@ -491,18 +515,25 @@ private final class CelebrationViewController: NSViewController {
         container.layer?.borderWidth = 1
         container.layer?.borderColor = NSColor.white.withAlphaComponent(0.28).cgColor
 
-        let label = NSTextField(labelWithString: text)
-        label.font = .systemFont(ofSize: 14, weight: .semibold)
-        label.textColor = .labelColor
-        label.alignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(label)
+        let button = NSButton(title: text, target: self, action: #selector(messageClicked))
+        button.isBordered = false
+        button.font = .systemFont(ofSize: 14, weight: .semibold)
+        button.contentTintColor = .labelColor
+        button.alignment = .center
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.setButtonType(.momentaryChange)
+        container.addSubview(button)
 
         NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
-            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
-            label.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+            button.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 10),
+            button.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+            button.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            button.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -8)
         ])
         view = container
+    }
+
+    @objc private func messageClicked() {
+        onClick?()
     }
 }

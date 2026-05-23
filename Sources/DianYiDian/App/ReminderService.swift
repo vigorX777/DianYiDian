@@ -165,6 +165,30 @@ final class ReminderService: NSObject, UNUserNotificationCenterDelegate {
         completionHandler([.banner, .list, .sound])
     }
 
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let scenarioIDString = response.notification.request.content.userInfo["scenarioID"] as? String
+        Task { @MainActor [weak self] in
+            guard let self,
+                  let scenarioIDString,
+                  let scenarioID = UUID(uuidString: scenarioIDString)
+            else {
+                return
+            }
+
+            do {
+                _ = try self.counterController.increment(scenarioID: scenarioID)
+                NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: self)
+            } catch {
+                self.notificationPermissionWarning = "提醒打卡失败：\(error.localizedDescription)"
+            }
+        }
+        completionHandler()
+    }
+
     private func hasReminderEnabledScenario(now: Date) -> Bool {
         counterController.reminderSnapshots(now: now).contains { snapshot in
             snapshot.scenario.isEnabled && snapshot.scenario.reminderSettings.mode != .none
