@@ -259,23 +259,25 @@ struct SettingsView: View {
             case .none:
                 EmptyView()
             case .interval:
-                Stepper(
-                    "间隔分钟：\(viewModel.reminderIntervalMinutes)",
+                numericInputRow(
+                    title: "间隔分钟",
                     value: $viewModel.reminderIntervalMinutes,
-                    in: 15...240,
-                    step: 15
+                    range: 15...240,
+                    suffix: "分钟"
                 )
             case .fixedTime:
                 HStack {
-                    Stepper(
-                        "小时：\(String(format: "%02d", viewModel.reminderFixedHour))",
+                    numericInputRow(
+                        title: "小时",
                         value: $viewModel.reminderFixedHour,
-                        in: 0...23
+                        range: 0...23,
+                        suffix: "时"
                     )
-                    Stepper(
-                        "分钟：\(String(format: "%02d", viewModel.reminderFixedMinute))",
+                    numericInputRow(
+                        title: "分钟",
                         value: $viewModel.reminderFixedMinute,
-                        in: 0...59
+                        range: 0...59,
+                        suffix: "分"
                     )
                 }
             }
@@ -290,6 +292,28 @@ struct SettingsView: View {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
+        }
+    }
+
+    private func numericInputRow(
+        title: String,
+        value: Binding<Int>,
+        range: ClosedRange<Int>,
+        suffix: String
+    ) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .foregroundStyle(.secondary)
+            Spacer()
+            TextField("", value: value, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 66)
+                .onChange(of: value.wrappedValue) { _, newValue in
+                    value.wrappedValue = min(max(newValue, range.lowerBound), range.upperBound)
+                }
+            Text(suffix)
+                .foregroundStyle(.secondary)
         }
     }
 

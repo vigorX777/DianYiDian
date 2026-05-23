@@ -27,7 +27,7 @@ struct StatusMenuView: View {
         ZStack {
             StatusMenuBackdrop()
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
                 header
                 LiquidMonthCalendarView(monthProgress: monthProgress, themeColor: snapshot.scenario.themeColor)
 
@@ -37,9 +37,9 @@ struct StatusMenuView: View {
 
                 actionBar
             }
-            .padding(16)
+            .padding(12)
         }
-        .frame(width: 318)
+        .frame(width: 292)
     }
 
     private var header: some View {
@@ -52,11 +52,11 @@ struct StatusMenuView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(themeColor(snapshot.scenario.themeColor))
             }
-            .frame(width: 42, height: 42)
+            .frame(width: 36, height: 36)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(snapshot.scenario.name)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .lineLimit(1)
                 Text(lastCheckInText)
                     .font(.caption)
@@ -67,22 +67,22 @@ struct StatusMenuView: View {
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(snapshot.state.count)/\(snapshot.scenario.dailyTarget)")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
                 Text("今日")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(12)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.white.opacity(0.28), lineWidth: 1)
         )
     }
 
     private var scenarioSwitcher: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("切换场景")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -95,7 +95,7 @@ struct StatusMenuView: View {
                     HStack(spacing: 9) {
                         Image(systemName: scenario.iconStyle.symbolName)
                             .font(.system(size: 13, weight: .semibold))
-                            .frame(width: 24, height: 24)
+                            .frame(width: 22, height: 22)
                             .foregroundStyle(themeColor(scenario.themeColor))
                             .background(themeColor(scenario.themeColor).opacity(0.15), in: Circle())
                         Text(scenario.name)
@@ -111,7 +111,7 @@ struct StatusMenuView: View {
                                 .foregroundStyle(themeColor(scenario.themeColor))
                         }
                     }
-                    .padding(.vertical, 7)
+                    .padding(.vertical, 5)
                     .padding(.horizontal, 9)
                     .background {
                         RoundedRectangle(cornerRadius: 13, style: .continuous)
@@ -124,8 +124,8 @@ struct StatusMenuView: View {
     }
 
     private var actionBar: some View {
-        VStack(spacing: 9) {
-            HStack(spacing: 8) {
+        VStack(spacing: 7) {
+            HStack(spacing: 7) {
                 Button(action: onIncrement) {
                     Label("打卡", systemImage: "plus")
                         .frame(maxWidth: .infinity)
@@ -144,7 +144,7 @@ struct StatusMenuView: View {
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: 7) {
                 Button(action: onOpenSettings) {
                     Label("设置", systemImage: "gearshape")
                         .frame(maxWidth: .infinity)
@@ -155,7 +155,7 @@ struct StatusMenuView: View {
                 }
             }
         }
-        .controlSize(.small)
+        .controlSize(.mini)
     }
 
     private func themeColor(_ color: ThemeColor) -> Color {
@@ -175,23 +175,23 @@ private struct LiquidMonthCalendarView: View {
     let monthProgress: MonthProgress
     let themeColor: ThemeColor
 
-    private let columns = Array(repeating: GridItem(.fixed(32), spacing: 7), count: 7)
+    private let columns = Array(repeating: GridItem(.fixed(28), spacing: 5), count: 7)
 
     var body: some View {
-        VStack(spacing: 9) {
+        VStack(spacing: 7) {
             Text(monthProgress.monthTitle)
                 .font(.system(size: 13, weight: .semibold))
 
-            LazyVGrid(columns: columns, spacing: 7) {
+            LazyVGrid(columns: columns, spacing: 5) {
                 ForEach(monthProgress.weekdaySymbols, id: \.self) { symbol in
                     Text(symbol)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
-                        .frame(width: 32)
+                        .frame(width: 28)
                 }
 
                 ForEach(0..<monthProgress.leadingBlankCount, id: \.self) { _ in
-                    Color.clear.frame(width: 32, height: 30)
+                    Color.clear.frame(width: 28, height: 24)
                 }
 
                 ForEach(monthProgress.days, id: \.dayID) { day in
@@ -199,10 +199,10 @@ private struct LiquidMonthCalendarView: View {
                 }
             }
         }
-        .padding(12)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(10)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.white.opacity(0.24), lineWidth: 1)
         )
     }
@@ -224,7 +224,7 @@ private struct LiquidMonthCalendarView: View {
                             endPoint: .top
                         )
                     )
-                    .frame(height: max(2, 30 * CGFloat(day.completionRatio)))
+                    .frame(height: max(2, 24 * CGFloat(day.completionRatio)))
                     .overlay(alignment: .top) {
                         Capsule()
                             .fill(Color.white.opacity(0.30))
@@ -234,13 +234,13 @@ private struct LiquidMonthCalendarView: View {
             }
 
             Text("\(day.dayNumber)")
-                .font(.system(size: 10, weight: day.isToday ? .bold : .medium, design: .rounded))
+                .font(.system(size: 9, weight: day.isToday ? .bold : .medium, design: .rounded))
                 .foregroundStyle(day.isFuture ? Color.secondary.opacity(0.55) : Color.primary)
         }
-        .frame(width: 32, height: 30)
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .frame(width: 28, height: 24)
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(dayBorder(day), lineWidth: day.isToday ? 1.4 : 1)
         )
     }

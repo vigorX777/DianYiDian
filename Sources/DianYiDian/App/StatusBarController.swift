@@ -3,13 +3,13 @@ import DianYiDianCore
 import SwiftUI
 
 @MainActor
-final class StatusBarController: NSObject {
+final class StatusBarController: NSObject, NSMenuDelegate {
     private let counterController: CounterController
     private let onOpenSettings: () -> Void
     private let iconRenderer = StatusIconRenderer()
     private let soundFeedbackService = SoundFeedbackService()
     private var statusItems: [UUID: NSStatusItem] = [:]
-    private var menuPopover: NSPopover?
+    private var activeMenu: NSMenu?
     private var highlightedScenarioIDs: Set<UUID> = []
     private var celebratingScenarioIDs: Set<UUID> = []
     private var celebrationPopovers: [UUID: NSPopover] = [:]
@@ -20,7 +20,7 @@ final class StatusBarController: NSObject {
         super.init()
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(counterDidChange),
+            selector: #selector(counterDidChange(_:)),
             name: .dianYiDianCounterDidChange,
             object: nil
         )
@@ -72,7 +72,7 @@ final class StatusBarController: NSObject {
             return
         }
 
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        if NSApp.currentEvent?.type == .rightMouseDown || NSApp.currentEvent?.type == .rightMouseUp {
             showMenu(scenarioID: scenarioID)
             return
         }
@@ -99,44 +99,58 @@ final class StatusBarController: NSObject {
             return
         }
 
-        menuPopover?.close()
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.animates = true
-        popover.contentViewController = NSHostingController(
-            rootView: StatusMenuView(
-                snapshot: counterController.snapshot(for: scenarioID),
-                monthProgress: counterController.currentMonthProgress(scenarioID: scenarioID),
-                lastCheckInText: lastCheckInText(for: counterController.snapshot(for: scenarioID).state.lastCheckInAt),
-                scenarios: statusMenuScenarioRows(),
-                onIncrement: { [weak self] in
-                    self?.closeMenuPopover()
-                    self?.increment(scenarioID: scenarioID)
-                },
-                onUndo: { [weak self] in
-                    self?.closeMenuPopover()
-                    self?.undo(scenarioID: scenarioID)
-                },
-                onReset: { [weak self] in
-                    self?.closeMenuPopover()
-                    self?.reset(scenarioID: scenarioID)
-                },
-                onSelectScenario: { [weak self] selectedID in
-                    self?.closeMenuPopover()
-                    self?.selectScenario(id: selectedID)
-                },
-                onOpenSettings: { [weak self] in
-                    self?.closeMenuPopover()
-                    self?.onOpenSettings()
-                },
-                onQuit: { [weak self] in
-                    self?.closeMenuPopover()
-                    NSApp.terminate(nil)
-                }
-            )
+        let hostingView = NSHostingView(rootView: makeStatusMenuView(scenarioID: scenarioID))
+        hostingView.frame = NSRect(x: 0, y: 0, width: 292, height: 1)
+        let fittingSize = hostingView.fittingSize
+        hostingView.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: 292,
+            height: min(520, max(320, fittingSize.height))
         )
-        menuPopover = popover
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+
+        let menu = NSMenu()
+        menu.delegate = self
+        let contentItem = NSMenuItem()
+        contentItem.view = hostingView
+        menu.addItem(contentItem)
+
+        activeMenu = menu
+        item.menu = menu
+        button.performClick(nil)
+    }
+
+    private func makeStatusMenuView(scenarioID: UUID) -> StatusMenuView {
+        StatusMenuView(
+            snapshot: counterController.snapshot(for: scenarioID),
+            monthProgress: counterController.currentMonthProgress(scenarioID: scenarioID),
+            lastCheckInText: lastCheckInText(for: counterController.snapshot(for: scenarioID).state.lastCheckInAt),
+            scenarios: statusMenuScenarioRows(),
+            onIncrement: { [weak self] in
+                self?.closeMenuPopover()
+                self?.increment(scenarioID: scenarioID)
+            },
+            onUndo: { [weak self] in
+                self?.closeMenuPopover()
+                self?.undo(scenarioID: scenarioID)
+            },
+            onReset: { [weak self] in
+                self?.closeMenuPopover()
+                self?.reset(scenarioID: scenarioID)
+            },
+            onSelectScenario: { [weak self] selectedID in
+                self?.closeMenuPopover()
+                self?.selectScenario(id: selectedID)
+            },
+            onOpenSettings: { [weak self] in
+                self?.closeMenuPopover()
+                self?.onOpenSettings()
+            },
+            onQuit: { [weak self] in
+                self?.closeMenuPopover()
+                NSApp.terminate(nil)
+            }
+        )
     }
 
     @objc private func menuIncrement(_ sender: NSMenuItem) {
@@ -163,8 +177,11 @@ final class StatusBarController: NSObject {
         NSApp.terminate(nil)
     }
 
-    @objc private func counterDidChange() {
-        rebuildStatusItems()
+    @objc private func counterDidChange(_ notification: Notification) {
+        if notification.object as AnyObject === self {
+            return
+        }
+        refreshAllStatusItems()
     }
 
     private func undo(scenarioID: UUID) {
@@ -194,8 +211,16 @@ final class StatusBarController: NSObject {
     }
 
     private func closeMenuPopover() {
-        menuPopover?.close()
-        menuPopover = nil
+        activeMenu?.cancelTracking()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        if activeMenu === menu {
+            for item in statusItems.values where item.menu === menu {
+                item.menu = nil
+            }
+            activeMenu = nil
+        }
     }
 
     private func statusMenuScenarioRows() -> [StatusMenuScenarioRow] {
@@ -225,7 +250,7 @@ final class StatusBarController: NSObject {
                 triggerGoalCelebration(snapshot: snapshot)
             }
             playFeedback(snapshot: snapshot, reachedGoalBeforeIncrement: before)
-            NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: nil)
+            NotificationCenter.default.post(name: .dianYiDianCounterDidChange, object: self)
         } catch {
             presentError("打卡失败：\(error.localizedDescription)")
         }
@@ -241,6 +266,14 @@ final class StatusBarController: NSObject {
         for (scenarioID, item) in statusItems {
             refresh(item: item, scenarioID: scenarioID)
         }
+    }
+
+    private func refreshStatusItem(scenarioID: UUID) {
+        guard let item = statusItems[scenarioID] else {
+            refreshAllStatusItems()
+            return
+        }
+        refresh(item: item, scenarioID: scenarioID)
     }
 
     private func refresh(item: NSStatusItem, scenarioID: UUID) {
@@ -315,20 +348,20 @@ final class StatusBarController: NSObject {
 
     private func triggerCheckInFeedback(scenarioID: UUID) {
         highlightedScenarioIDs.insert(scenarioID)
-        refreshAllStatusItems()
+        refreshStatusItem(scenarioID: scenarioID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
             guard let self else {
                 return
             }
             highlightedScenarioIDs.remove(scenarioID)
-            refreshAllStatusItems()
+            refreshStatusItem(scenarioID: scenarioID)
         }
     }
 
     private func triggerGoalCelebration(snapshot: CounterSnapshot) {
         let scenarioID = snapshot.scenario.id
         celebratingScenarioIDs.insert(scenarioID)
-        refreshAllStatusItems()
+        refreshStatusItem(scenarioID: scenarioID)
         showGoalPopover(scenarioID: scenarioID, text: "今日\(snapshot.scenario.name)完成")
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
@@ -338,7 +371,7 @@ final class StatusBarController: NSObject {
             celebratingScenarioIDs.remove(scenarioID)
             celebrationPopovers[scenarioID]?.close()
             celebrationPopovers.removeValue(forKey: scenarioID)
-            refreshAllStatusItems()
+            refreshStatusItem(scenarioID: scenarioID)
         }
     }
 
