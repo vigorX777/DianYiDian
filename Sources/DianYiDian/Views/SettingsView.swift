@@ -18,8 +18,8 @@ struct SettingsView: View {
                     ScrollView {
                         VStack(spacing: 14) {
                             appSettingsPanel
-                            scenarioEditorPanel
                             developerSettingsPanel
+                            scenarioEditorPanel
                         }
                         .padding(.trailing, 2)
                     }
