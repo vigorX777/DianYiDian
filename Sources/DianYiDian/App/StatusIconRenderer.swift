@@ -63,12 +63,22 @@ final class StatusIconRenderer {
     private func drawContrastPlate(center: NSPoint) {
         let plateRect = NSRect(x: center.x - 10.4, y: center.y - 10.4, width: 20.8, height: 20.8)
         let plate = NSBezierPath(ovalIn: plateRect)
-        NSColor(calibratedWhite: 1, alpha: 0.92).setFill()
-        plate.fill()
+        NSGraphicsContext.saveGraphicsState()
+        plate.addClip()
+        NSGradient(colors: [
+            NSColor(calibratedWhite: 1, alpha: 0.96),
+            NSColor(calibratedWhite: 1, alpha: 0.66),
+            NSColor(calibratedWhite: 0.92, alpha: 0.76)
+        ])?.draw(in: plateRect, angle: -45)
+        NSGraphicsContext.restoreGraphicsState()
+
+        let highlight = NSBezierPath(ovalIn: NSRect(x: center.x - 6.8, y: center.y + 1.8, width: 9.8, height: 5.2))
+        NSColor(calibratedWhite: 1, alpha: 0.40).setFill()
+        highlight.fill()
 
         let outline = NSBezierPath(ovalIn: plateRect.insetBy(dx: 0.5, dy: 0.5))
         outline.lineWidth = 0.9
-        NSColor(calibratedWhite: 0, alpha: 0.24).setStroke()
+        NSColor(calibratedWhite: 0, alpha: 0.18).setStroke()
         outline.stroke()
     }
 

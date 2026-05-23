@@ -19,8 +19,12 @@ final class SettingsWindowController: NSWindowController {
         let hostingController = NSHostingController(rootView: SettingsView(viewModel: viewModel))
         let window = NSWindow(contentViewController: hostingController)
         window.title = "点一点设置"
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.setContentSize(NSSize(width: 760, height: 560))
+        window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.backgroundColor = .clear
+        window.hasShadow = true
+        window.setContentSize(NSSize(width: 900, height: 640))
         window.isReleasedWhenClosed = false
         super.init(window: window)
     }
