@@ -9,7 +9,7 @@ EXECUTABLE="$ROOT_DIR/.build/release/DianYiDian"
 RESOURCES_DIR="$ROOT_DIR/Sources/DianYiDian/Resources"
 ICONSET_DIR="$ROOT_DIR/.build/AppIcon.iconset"
 ICON_FILE="$RESOURCES_DIR/AppIcon.icns"
-ZIP_FILE="$DIST_DIR/点一点-0.4.9.zip"
+ZIP_FILE="$DIST_DIR/点一点-0.5.0.zip"
 
 cd "$ROOT_DIR"
 swift build -c release --product DianYiDian

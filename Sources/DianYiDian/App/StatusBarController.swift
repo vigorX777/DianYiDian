@@ -111,13 +111,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
 
         let hostingView = NSHostingView(rootView: makeStatusMenuView(scenarioID: scenarioID))
-        hostingView.frame = NSRect(x: 0, y: 0, width: 326, height: 1)
+        hostingView.frame = NSRect(x: 0, y: 0, width: 344, height: 1)
         let fittingSize = hostingView.fittingSize
         hostingView.frame = NSRect(
             x: 0,
             y: 0,
-            width: 326,
-            height: min(520, max(320, fittingSize.height))
+            width: 344,
+            height: min(660, max(360, fittingSize.height))
         )
 
         let menu = NSMenu()

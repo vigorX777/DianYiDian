@@ -55,7 +55,7 @@ struct StatusMenuView: View {
         ZStack {
             StatusMenuBackdrop()
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 12) {
                 header
                 LiquidMonthCalendarView(monthProgress: currentData.monthProgress, themeColor: currentSnapshot.scenario.themeColor)
 
@@ -65,9 +65,11 @@ struct StatusMenuView: View {
 
                 actionBar
             }
-            .padding(12)
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 14)
         }
-        .frame(width: 326)
+        .frame(width: 344)
     }
 
     private var currentData: StatusMenuScenarioData {
@@ -109,7 +111,8 @@ struct StatusMenuView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(10)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 12)
         .background(menuPanelFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -118,11 +121,11 @@ struct StatusMenuView: View {
     }
 
     private var scenarioSwitcher: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text("切换场景")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 2)
+                .padding(.horizontal, 4)
 
             ForEach(scenarioData) { scenarioData in
                 let snapshot = scenarioData.snapshot
@@ -147,11 +150,15 @@ struct StatusMenuView: View {
                             .foregroundStyle(themeColor(scenario.themeColor))
                     }
                 }
-                .padding(.vertical, 7)
-                .padding(.horizontal, 10)
+                .padding(.vertical, 9)
+                .padding(.horizontal, 12)
                 .background {
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .fill(isSelected ? Color.white.opacity(0.34) : Color.white.opacity(0.14))
+                        .fill(isSelected ? Color.white.opacity(0.36) : Color.white.opacity(0.16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                .stroke(Color.white.opacity(isSelected ? 0.34 : 0.14), lineWidth: 1)
+                        )
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 .simultaneousGesture(
@@ -173,14 +180,14 @@ struct StatusMenuView: View {
     }
 
     private var actionBar: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
                 Button {
                     onIncrement(selectedScenarioID)
                 } label: {
                     Label("打卡", systemImage: "plus")
                         .frame(maxWidth: .infinity)
-                        .frame(height: 36)
+                        .frame(height: 42)
                 }
                 .buttonStyle(.borderedProminent)
 
@@ -189,7 +196,7 @@ struct StatusMenuView: View {
                 } label: {
                     Label("撤销", systemImage: "arrow.uturn.backward")
                         .frame(maxWidth: .infinity)
-                        .frame(height: 36)
+                        .frame(height: 42)
                 }
                 .disabled(!currentSnapshot.state.hasUndoableIncrement || currentSnapshot.state.count == 0)
 
@@ -198,24 +205,25 @@ struct StatusMenuView: View {
                 } label: {
                     Label("重置", systemImage: "arrow.clockwise")
                         .frame(maxWidth: .infinity)
-                        .frame(height: 36)
+                        .frame(height: 42)
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: 10) {
                 Button(action: onOpenSettings) {
                     Label("设置", systemImage: "gearshape")
                         .frame(maxWidth: .infinity)
-                        .frame(height: 36)
+                        .frame(height: 42)
                 }
                 Button(role: .destructive, action: onQuit) {
                     Label("退出", systemImage: "power")
                         .frame(maxWidth: .infinity)
-                        .frame(height: 36)
+                        .frame(height: 42)
                 }
             }
         }
         .controlSize(.regular)
+        .padding(.top, 2)
     }
 
     private var menuPanelFill: some ShapeStyle {
@@ -240,18 +248,18 @@ private struct LiquidMonthCalendarView: View {
     let themeColor: ThemeColor
 
     private let cellWidth: CGFloat = 34
-    private let cellHeight: CGFloat = 30
+    private let cellHeight: CGFloat = 32
     private let columns = Array(repeating: GridItem(.fixed(34), spacing: 6), count: 7)
     private var menuPanelFill: some ShapeStyle {
         Color(nsColor: .controlBackgroundColor).opacity(0.96)
     }
 
     var body: some View {
-        VStack(spacing: 9) {
+        VStack(spacing: 8) {
             Text(monthProgress.monthTitle)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
 
-            LazyVGrid(columns: columns, spacing: 6) {
+            LazyVGrid(columns: columns, spacing: 7) {
                 ForEach(monthProgress.weekdaySymbols, id: \.self) { symbol in
                     Text(symbol)
                         .font(.caption2)
@@ -268,7 +276,8 @@ private struct LiquidMonthCalendarView: View {
                 }
             }
         }
-        .padding(12)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 12)
         .background(menuPanelFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -279,7 +288,7 @@ private struct LiquidMonthCalendarView: View {
     private func dayCell(_ day: DayProgress) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .fill(day.isFuture ? Color.white.opacity(0.18) : Color.white.opacity(0.26))
+                .fill(cellBackground(for: day))
 
             if !day.isFuture, day.completionRatio > 0 {
                 VStack(spacing: 0) {
@@ -295,19 +304,19 @@ private struct LiquidMonthCalendarView: View {
                                 endPoint: .top
                             )
                         )
-                        .frame(height: max(3, cellHeight * CGFloat(day.completionRatio)))
+                        .frame(height: max(5, cellHeight * CGFloat(day.completionRatio)))
                         .overlay(alignment: .top) {
                             Capsule()
                                 .fill(Color.white.opacity(0.38))
                                 .frame(height: 1)
-                                .padding(.horizontal, 4)
+                                .padding(.horizontal, 5)
                         }
                 }
             }
 
             Text("\(day.dayNumber)")
                 .font(.system(size: 11, weight: day.isToday ? .bold : .medium, design: .rounded))
-                .foregroundStyle(day.isFuture ? Color.secondary.opacity(0.55) : Color.primary)
+                .foregroundStyle(dayTextColor(day))
                 .frame(width: cellWidth, height: cellHeight, alignment: .center)
         }
         .frame(width: cellWidth, height: cellHeight)
@@ -341,6 +350,29 @@ private struct LiquidMonthCalendarView: View {
             return Color.green.opacity(0.46)
         }
         return Color.white.opacity(0.18)
+    }
+
+    private func cellBackground(for day: DayProgress) -> Color {
+        if day.isToday {
+            return color(for: day).opacity(0.12)
+        }
+        if day.isFuture {
+            return Color.white.opacity(0.10)
+        }
+        if day.hasRecord || day.completionRatio > 0 {
+            return Color.white.opacity(0.22)
+        }
+        return Color.white.opacity(0.06)
+    }
+
+    private func dayTextColor(_ day: DayProgress) -> Color {
+        if day.isFuture {
+            return Color.secondary.opacity(0.48)
+        }
+        if day.completionRatio >= 0.75 {
+            return Color.primary
+        }
+        return Color.primary.opacity(0.92)
     }
 }
 
